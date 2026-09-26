@@ -1,0 +1,616 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Proposed Solution - B2B Hospitality Resource Exchange</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- html2canvas for 1-click PNG image export -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: #0f172a;
+      color: #0f172a;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 24px;
+      min-height: 100vh;
+    }
+
+    /* Top Action Bar for Exporting */
+    .action-header {
+      width: 100%;
+      max-width: 1400px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+      color: #ffffff;
+    }
+
+    .action-header h1 {
+      font-size: 1.15rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .btn-export {
+      background: linear-gradient(135deg, #2563eb, #1d4ed8);
+      color: #ffffff;
+      border: none;
+      padding: 10px 20px;
+      font-size: 0.95rem;
+      font-weight: 700;
+      border-radius: 8px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      box-shadow: 0 4px 14px rgba(37, 99, 235, 0.4);
+      transition: all 0.2s ease;
+    }
+
+    .btn-export:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(37, 99, 235, 0.6);
+    }
+
+    /* 16:9 Presentation Canvas Container */
+    .slide-wrapper {
+      width: 100%;
+      max-width: 1400px;
+      aspect-ratio: 16 / 9;
+      background: linear-gradient(180deg, #f8fafc 0%, #ffffff 40%, #f1f5f9 100%);
+      border-radius: 16px;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      padding: 40px 48px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      overflow: hidden;
+      position: relative;
+    }
+
+    /* Background tech accent glow */
+    .slide-wrapper::before {
+      content: '';
+      position: absolute;
+      top: -150px;
+      right: -150px;
+      width: 450px;
+      height: 450px;
+      background: radial-gradient(circle, rgba(37, 99, 235, 0.08) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    .slide-wrapper::after {
+      content: '';
+      position: absolute;
+      bottom: -150px;
+      left: -150px;
+      width: 450px;
+      height: 450px;
+      background: radial-gradient(circle, rgba(5, 150, 105, 0.08) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    /* --- Header Section --- */
+    .slide-header {
+      text-align: center;
+      position: relative;
+      z-index: 1;
+    }
+
+    .header-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: #eff6ff;
+      color: #2563eb;
+      border: 1px solid #bfdbfe;
+      font-size: 0.85rem;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 4px 14px;
+      border-radius: 9999px;
+      margin-bottom: 8px;
+    }
+
+    .slide-title {
+      font-size: 2.5rem;
+      font-weight: 800;
+      color: #0f172a;
+      letter-spacing: -0.025em;
+      line-height: 1.15;
+    }
+
+    .slide-subtitle {
+      font-size: 1.15rem;
+      color: #475569;
+      font-weight: 500;
+      margin-top: 4px;
+    }
+
+    /* --- Top Row: 3-Box Flow Architecture --- */
+    .top-architecture-grid {
+      display: grid;
+      grid-template-columns: 1fr 60px 1.25fr 60px 1fr;
+      align-items: center;
+      gap: 8px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .arch-card {
+      background: #ffffff;
+      border-radius: 14px;
+      border: 2px solid #e2e8f0;
+      padding: 20px 22px;
+      box-shadow: 0 4px 12px rgba(15, 23, 42, 0.04);
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      transition: all 0.2s ease;
+    }
+
+    .arch-card.highlight {
+      border-color: #2563eb;
+      background: linear-gradient(180deg, #ffffff 0%, #eff6ff 100%);
+      box-shadow: 0 10px 25px -5px rgba(37, 99, 235, 0.15);
+      transform: scale(1.03);
+    }
+
+    .card-header-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .card-icon-box {
+      width: 44px;
+      height: 44px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .icon-blue {
+      background: #eff6ff;
+      color: #2563eb;
+    }
+
+    .icon-navy {
+      background: #0f172a;
+      color: #ffffff;
+    }
+
+    .icon-green {
+      background: #ecfdf5;
+      color: #059669;
+    }
+
+    .card-title-group {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .card-label {
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #64748b;
+    }
+
+    .card-title {
+      font-size: 1.2rem;
+      font-weight: 800;
+      color: #0f172a;
+    }
+
+    .card-items-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .card-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: #334155;
+    }
+
+    .card-item i {
+      color: #2563eb;
+      width: 16px;
+      height: 16px;
+    }
+
+    .connector-arrow {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      color: #2563eb;
+      font-size: 0.75rem;
+      font-weight: 800;
+      text-align: center;
+      gap: 4px;
+    }
+
+    .connector-arrow svg {
+      width: 32px;
+      height: 32px;
+      stroke-width: 2.5;
+    }
+
+    /* --- Middle Row: 4 Clear Problem-Solution Cards --- */
+    .solutions-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .sol-card {
+      background: #ffffff;
+      border-radius: 12px;
+      border: 1.5px solid #e2e8f0;
+      padding: 16px 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      box-shadow: 0 2px 6px rgba(15, 23, 42, 0.03);
+    }
+
+    .sol-tag-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .sol-num {
+      font-size: 0.8rem;
+      font-weight: 800;
+      color: #94a3b8;
+    }
+
+    .sol-problem-tag {
+      font-size: 0.72rem;
+      font-weight: 700;
+      color: #e11d48;
+      background: #fff1f2;
+      padding: 2px 8px;
+      border-radius: 9999px;
+    }
+
+    .sol-title {
+      font-size: 1.05rem;
+      font-weight: 800;
+      color: #0f172a;
+      line-height: 1.25;
+    }
+
+    .sol-desc {
+      font-size: 0.85rem;
+      color: #475569;
+      line-height: 1.4;
+      font-weight: 500;
+    }
+
+    /* --- Bottom Row: Streamlined 4-Step Pipeline --- */
+    .pipeline-bar {
+      background: #ffffff;
+      border-radius: 12px;
+      border: 1.5px solid #e2e8f0;
+      padding: 14px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: relative;
+      z-index: 1;
+      box-shadow: 0 4px 12px rgba(15, 23, 42, 0.03);
+    }
+
+    .pipeline-step {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .step-circle {
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      background: #eff6ff;
+      color: #2563eb;
+      font-size: 0.95rem;
+      font-weight: 800;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 2px solid #bfdbfe;
+    }
+
+    .step-circle.active {
+      background: #2563eb;
+      color: #ffffff;
+      border-color: #2563eb;
+    }
+
+    .step-text-wrap {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .step-title {
+      font-size: 0.92rem;
+      font-weight: 800;
+      color: #0f172a;
+    }
+
+    .step-subtext {
+      font-size: 0.74rem;
+      color: #64748b;
+      font-weight: 500;
+    }
+
+    .pipeline-arrow {
+      color: #cbd5e1;
+      display: flex;
+      align-items: center;
+    }
+
+    /* Footer Slogan */
+    .slide-footer-text {
+      text-align: center;
+      font-size: 0.88rem;
+      color: #64748b;
+      font-weight: 600;
+    }
+
+    .slide-footer-text strong {
+      color: #0f172a;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Action Bar -->
+  <div class="action-header">
+    <h1>
+      <i data-lucide="presentation" style="width: 22px; height: 22px; color: #60a5fa;"></i>
+      <span>Executive Pitch Slide • High-Resolution Vector Infographic</span>
+    </h1>
+    <button class="btn-export" id="btn-download-img">
+      <i data-lucide="download" style="width: 18px; height: 18px;"></i>
+      <span>Download Crisp Slide (PNG Image)</span>
+    </button>
+  </div>
+
+  <!-- The 16:9 Slide Canvas -->
+  <div class="slide-wrapper" id="slide-canvas">
+    
+    <!-- Header -->
+    <header class="slide-header">
+      <div class="header-badge">
+        <i data-lucide="sparkles" style="width: 14px; height: 14px;"></i>
+        <span>HospitaLink Solution Architecture</span>
+      </div>
+      <h2 class="slide-title">Direct B2B Hospitality Resource Exchange</h2>
+      <p class="slide-subtitle">Smarter, Faster &amp; Safer Inter-Hotel &amp; Event Operations across Mumbai Metropolitan Region</p>
+    </header>
+
+    <!-- Top Grid: Providers -> Marketplace -> Seekers -->
+    <div class="top-architecture-grid">
+      
+      <!-- 1. Resource Providers -->
+      <div class="arch-card">
+        <div class="card-header-row">
+          <div class="card-icon-box icon-blue">
+            <i data-lucide="building-2" style="width: 24px; height: 24px;"></i>
+          </div>
+          <div class="card-title-group">
+            <span class="card-label">Asset Owners</span>
+            <h3 class="card-title">RESOURCE PROVIDERS</h3>
+          </div>
+        </div>
+        <div class="card-items-list">
+          <div class="card-item"><i data-lucide="check-circle-2"></i> Hotels &amp; Banquet Venues</div>
+          <div class="card-item"><i data-lucide="check-circle-2"></i> Commercial Prep Kitchens</div>
+          <div class="card-item"><i data-lucide="check-circle-2"></i> Cold-Chain Fleet &amp; Rigs</div>
+        </div>
+      </div>
+
+      <!-- Arrow 1 -->
+      <div class="connector-arrow">
+        <span>LIST</span>
+        <i data-lucide="arrow-right"></i>
+      </div>
+
+      <!-- 2. Smart Marketplace (Center Engine) -->
+      <div class="arch-card highlight">
+        <div class="card-header-row">
+          <div class="card-icon-box icon-navy">
+            <i data-lucide="cpu" style="width: 24px; height: 24px;"></i>
+          </div>
+          <div class="card-title-group">
+            <span class="card-label">Core Exchange Engine</span>
+            <h3 class="card-title">SMART B2B MARKETPLACE</h3>
+          </div>
+        </div>
+        <div class="card-items-list">
+          <div class="card-item"><i data-lucide="zap" style="color: #ea580c;"></i> <strong>Emergency 30–60 Min Dispatch</strong></div>
+          <div class="card-item"><i data-lucide="calendar-check" style="color: #2563eb;"></i> <strong>Smart Calendar Lock (20% Token)</strong></div>
+          <div class="card-item"><i data-lucide="shield-check" style="color: #059669;"></i> <strong>Platform Escrow &amp; 2-Step Photo Audit</strong></div>
+        </div>
+      </div>
+
+      <!-- Arrow 2 -->
+      <div class="connector-arrow">
+        <span>BOOK</span>
+        <i data-lucide="arrow-right"></i>
+      </div>
+
+      <!-- 3. Resource Seekers -->
+      <div class="arch-card">
+        <div class="card-header-row">
+          <div class="card-icon-box icon-green">
+            <i data-lucide="users" style="width: 24px; height: 24px;"></i>
+          </div>
+          <div class="card-title-group">
+            <span class="card-label">Event Businesses</span>
+            <h3 class="card-title">RESOURCE SEEKERS</h3>
+          </div>
+        </div>
+        <div class="card-items-list">
+          <div class="card-item"><i data-lucide="check-circle-2" style="color: #059669;"></i> Caterers &amp; Cloud Kitchens</div>
+          <div class="card-item"><i data-lucide="check-circle-2" style="color: #059669;"></i> Event Planners &amp; Staging</div>
+          <div class="card-item"><i data-lucide="check-circle-2" style="color: #059669;"></i> Corporate Gala Organizers</div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Middle Grid: 4 Core Problems & Distinct Solutions -->
+    <div class="solutions-grid">
+      
+      <div class="sol-card">
+        <div class="sol-tag-row">
+          <span class="sol-num">01</span>
+          <span class="sol-problem-tag">NO BROKER FEES</span>
+        </div>
+        <h4 class="sol-title">Direct B2B Network</h4>
+        <p class="sol-desc">Eliminates fragmented WhatsApp brokers with verified direct commercial contracts.</p>
+      </div>
+
+      <div class="sol-card">
+        <div class="sol-tag-row">
+          <span class="sol-num">02</span>
+          <span class="sol-problem-tag">NO CLASHES</span>
+        </div>
+        <h4 class="sol-title">Smart Calendar Lock</h4>
+        <p class="sol-desc">20% Token instantly freezes the host calendar, stopping double-bookings.</p>
+      </div>
+
+      <div class="sol-card">
+        <div class="sol-tag-row">
+          <span class="sol-num">03</span>
+          <span class="sol-problem-tag">NO RISK</span>
+        </div>
+        <h4 class="sol-title">Escrow &amp; Photo Audit</h4>
+        <p class="sol-desc">Automated security deposit held in escrow with pre &amp; post condition verification.</p>
+      </div>
+
+      <div class="sol-card">
+        <div class="sol-tag-row">
+          <span class="sol-num">04</span>
+          <span class="sol-problem-tag">EMERGENCY</span>
+        </div>
+        <h4 class="sol-title">30–60 Min Dispatch</h4>
+        <p class="sol-desc">Hyper-local proximity radius solves sudden shortages with fast-track delivery.</p>
+      </div>
+
+    </div>
+
+    <!-- Bottom Row: 4-Step Revenue Lifecycle -->
+    <div class="pipeline-bar">
+      
+      <div class="pipeline-step">
+        <div class="step-circle active">1</div>
+        <div class="step-text-wrap">
+          <span class="step-title">List Asset</span>
+          <span class="step-subtext">Rates &amp; Capacity</span>
+        </div>
+      </div>
+
+      <div class="pipeline-arrow"><i data-lucide="chevron-right" style="width: 20px; height: 20px;"></i></div>
+
+      <div class="pipeline-step">
+        <div class="step-circle">2</div>
+        <div class="step-text-wrap">
+          <span class="step-title">Smart Match</span>
+          <span class="step-subtext">Radius &amp; Availability</span>
+        </div>
+      </div>
+
+      <div class="pipeline-arrow"><i data-lucide="chevron-right" style="width: 20px; height: 20px;"></i></div>
+
+      <div class="pipeline-step">
+        <div class="step-circle">3</div>
+        <div class="step-text-wrap">
+          <span class="step-title">Token Lock</span>
+          <span class="step-subtext">20% Escrow Freeze</span>
+        </div>
+      </div>
+
+      <div class="pipeline-arrow"><i data-lucide="chevron-right" style="width: 20px; height: 20px;"></i></div>
+
+      <div class="pipeline-step">
+        <div class="step-circle active" style="background: #059669; border-color: #059669;">4</div>
+        <div class="step-text-wrap">
+          <span class="step-title">Deploy &amp; Settle</span>
+          <span class="step-subtext">Photo Audit &amp; Payout</span>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Footer Summary Text -->
+    <div class="slide-footer-text">
+      <strong>One Unified Platform:</strong> Monetizes idle capacity, prevents double-booking, and secures enterprise hospitality contracts.
+    </div>
+
+  </div>
+
+  <script>
+    lucide.createIcons();
+
+    // 1-Click High-Res PNG Download
+    document.getElementById('btn-download-img').addEventListener('click', function() {
+      const btn = this;
+      btn.innerHTML = '<span>Rendering High-Res Image...</span>';
+      
+      const slide = document.getElementById('slide-canvas');
+      html2canvas(slide, {
+        scale: 2, // 2x resolution (Full HD / 4K crispness)
+        useCORS: true,
+        backgroundColor: '#ffffff'
+      }).then(canvas => {
+        const link = document.createElement('a');
+        link.download = 'Proposed_Solution_B2B_Exchange_Slide.png';
+        link.href = canvas.toDataURL('image/png');
+        link.click();
+        btn.innerHTML = '<i data-lucide="download" style="width: 18px; height: 18px;"></i><span>Download Crisp Slide (PNG Image)</span>';
+        lucide.createIcons();
+      }).catch(err => {
+        console.error('Export error:', err);
+        btn.innerHTML = '<span>Failed. Try Right-Click -> Save Image</span>';
+      });
+    });
+  </script>
+</body>
+</html>
