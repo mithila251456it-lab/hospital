@@ -3,9 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
-  <title>HospitalityHub — Smart B2B Marketplace for Shared Hospitality Resources</title>
-  <meta name="description" content="India's premier enterprise B2B hospitality resource exchange for hotels, caterers, banquets, and event production enterprises. Share, negotiate, and book verified assets on demand.">
-  <meta name="keywords" content="B2B Hospitality, Resource Exchange, Banquet Sharing, Commercial Kitchen Rental, Reefer Van Logistics, AV Equipment, Event Production, Hospitality Marketplace">
+  <title>HospitalityHub — MMR B2B Hospitality Marketplace</title>
+  <meta name="description" content="India's premier enterprise B2B hospitality resource exchange for Mumbai Metropolitan Region (MMR). Share, negotiate, and book verified banquet spaces, commercial kitchens, reefer vans, and power utilities with real-time calendar lock.">
+  <meta name="keywords" content="B2B Hospitality MMR, Mumbai Banquet Rental, Commercial Kitchens Mumbai, Reefer Van Logistics Thane, Event Rigging Navi Mumbai, Hospitality Marketplace">
   <meta name="theme-color" content="#0f766e">
 
   <!-- Favicon SVG Data URI -->
@@ -23,10 +23,25 @@
   <!-- Root Container for Application Mounting -->
   <div id="root"></div>
 
-  <!-- 1. Central Data & Translation Layer -->
+  <!-- 1. Central API Configuration -->
+  <script src="js/services/apiConfig.js"></script>
+
+  <!-- 2. Strict MMR Location System -->
+  <script src="js/services/locationService.js"></script>
+
+  <!-- 3. Central Data & Localization Layer -->
   <script src="js/data.js"></script>
 
-  <!-- 2. Fast & Resilient Application Controller (No Babel/CORS dependency) -->
+  <!-- 4. Domain & Security Services -->
+  <script src="js/services/authService.js"></script>
+  <script src="js/services/uploadService.js"></script>
+  <script src="js/services/providerService.js"></script>
+  <script src="js/services/bookingService.js"></script>
+  <script src="js/services/reviewService.js"></script>
+  <script src="js/services/paymentService.js"></script>
+  <script src="js/services/resourceService.js"></script>
+
+  <!-- 5. Main Application Controller -->
   <script src="js/app.js"></script>
 </body>
 </html>

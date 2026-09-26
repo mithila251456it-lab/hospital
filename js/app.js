@@ -1,74 +1,32 @@
 /**
  * HospitalityHub — Smart B2B Marketplace for Shared Hospitality Resources
- * Production-Ready Vanilla JS Application Controller
+ * Production-Ready Application Controller (MMR Scope)
  * 
- * Zero-dependency, 100% resilient across file:/// and http:// protocols.
- * Supports:
- * - Light & Dark Theme Engine
- * - Full English & Hindi Localization
- * - Provider ↔ Seeker Dual Role Experiences
- * - Cinematic Hero & Floating Search Panel
- * - 10 Standard Hospitality Categories
- * - 5-Factor Smart Match Score Breakdown
- * - Multi-Photo Gallery & Carousel Modal
- * - Provider 6-Angle Photo Upload UI (Min 3 photos rule)
- * - Planned vs Emergency Rapid Dispatch Booking
- * - Calendar Lock & Collision Prevention System
- * - Multi-Tab Negotiation Center & Counter-Offer Modal
- * - Simulated Escrow Payment & Booking Confirmation
- * - Condition Audit (Pre-Dispatch vs Post-Return)
- * - Provider Revenue & Fleet Utilization Analytics
+ * Features:
+ * - Strict MMR Location Enforcement & Radius Calculations
+ * - Dual Seeker & Provider Roles with Verified Status Management
+ * - Modern Luxury Visual Design System with Responsive Grid
+ * - Explore, Spaces, Resources, Providers, How It Works, and Dual Dashboards
+ * - 3–4 Photo Galleries with Interactive Thumbnail Dot Navigation
+ * - Real-Time Calendar Lock & Date Collision Prevention System
+ * - Instant Booking Cancellation & Automatic Date Reappearance
+ * - Authenticated Reviews System (Gated to Completed Bookings)
+ * - Provider Business Verification Dossier & 3–4 Photo Validation
+ * - Complete Auth System (Sign In, Sign Up, Profile, Password Meter)
+ * - Tokenized B2B Escrow Checkout Simulation
+ * - Resilient Offline / Mock Fallback + Backend REST API Sync
  */
 
 (function() {
   'use strict';
 
-  // Central Coordinates (BKC Logistics Hub)
-  const DEPOT_COORDS = { lat: 19.0674, lng: 72.8687 };
-
-  // Distance Calculator (Haversine Formula)
-  function calculateDistanceKm(lat1, lon1, lat2, lon2) {
-    if (!lat1 || !lon1 || !lat2 || !lon2) return 5.4;
-    const R = 6371;
-    const dLat = (lat2 - lat1) * Math.PI / 180;
-    const dLon = (lon2 - lon1) * Math.PI / 180;
-    const a =
-      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-      Math.sin(dLon / 2) * Math.sin(dLon / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    return Math.round(R * c * 10) / 10;
-  }
-
-  // Compatibility Match Score (78% - 99%)
-  function calculateMatchScore(item, distKm) {
-    let score = 94;
-    if (distKm < 6) score += 3;
-    else if (distKm > 18) score -= 6;
-    if (item.rating >= 4.9) score += 2;
-    if (item.instantDispatchAvailable) score += 2;
-    if (item.availabilityStatus === 'Pre-booked') score -= 14;
-    return Math.min(99, Math.max(78, score));
-  }
-
   class HospitalityHubApp {
     constructor() {
-      // 1. Core State
+      // 1. Theme, Localization & Active Navigation
       this.theme = localStorage.getItem('hospitalityhub_theme') || 'light';
       this.lang = localStorage.getItem('hospitalityhub_lang') || 'en';
-      this.role = 'seeker'; // 'seeker' | 'provider'
-      this.currentView = 'marketplace'; // 'marketplace' | 'resources' | 'providers' | 'how-it-works' | 'negotiations' | 'provider-dashboard'
-      
-      this.inventory = this.loadInventory();
-      this.requests = this.loadRequests();
-      this.currentUser = (window.DEMO_USERS && window.DEMO_USERS[0]) || {
-        businessName: "Imperial Banquets & Hospitality Ltd",
-        email: "procurement@imperialbanquets.in",
-        role: "Provider & Seeker",
-        location: "Lower Parel, Mumbai",
-        rating: 4.9,
-        reviewsCount: 42
-      };
+      this.currentView = 'explore'; // 'explore' | 'spaces' | 'resources' | 'providers' | 'how-it-works' | 'seeker-dashboard' | 'provider-dashboard'
+      this.activeTab = 'all';
 
       // 2. Filter & Search State
       this.selectedCategory = 'all';
@@ -78,65 +36,69 @@
       this.searchEndDate = '';
       this.searchQuantity = 1;
       this.searchBookingType = 'All'; // 'All' | 'Planned' | 'Emergency'
+      this.searchSortBy = 'smartMatch';
+      this.minRatingFilter = 0;
       this.providerFilterStatus = 'All';
-      this.negotiationTab = 'incoming';
 
-      // 3. Modal States
-      this.selectedResource = null;
-      this.activePhotoIndex = 0;
-      this.matchScoreModalItem = null;
-      this.checkoutResource = null;
-      this.checkoutStep = 'review';
-      this.paymentMethod = 'upi';
-      this.logisticsMode = 'delivery';
-      this.negotiationModalItem = null;
-      this.photoUploadModalOpen = false;
-      this.photoAuditModalItem = null;
+      // 3. Active Modals State
+      this.authModalOpen = false;
+      this.authModalMode = 'login'; // 'login' | 'register' | 'forgot' | 'reset'
+      this.detailModalItem = null;
+      this.detailActivePhotoIdx = 0;
+      this.bookingModalItem = null;
+      this.bookingStartDate = '';
+      this.bookingEndDate = '';
+      this.bookingDays = 1;
+      this.bookingLogistics = 'delivery';
+      this.bookingPaymentMethod = 'upi';
+      this.bookingProcessing = false;
+      this.bookingSuccessData = null;
+
+      this.verificationModalOpen = false;
+      this.verificationForm = {
+        fullName: '',
+        businessName: '',
+        businessType: 'Hotel & Banquet Venue',
+        location: 'Lower Parel, Mumbai',
+        phone: '',
+        email: '',
+        description: '',
+        gstin: '',
+        fssaiLicense: '',
+        tradeLicense: '',
+        photos: []
+      };
+
+      this.addResourceModalOpen = false;
+      this.newResourceForm = {
+        title: '',
+        category: 'Spaces',
+        shopName: '',
+        location: 'Lower Parel, Mumbai',
+        pricePerDay: '',
+        securityDeposit: '',
+        quantityAvailable: 1,
+        description: '',
+        specifications: '',
+        instantDispatch: false,
+        photos: []
+      };
+
+      this.reviewModalItem = null;
+      this.reviewRating = 5;
+      this.reviewTitle = '';
+      this.reviewComment = '';
+
+      this.profileSettingsModalOpen = false;
       this.notificationsOpen = false;
-
-      // 4. New Listing State
-      this.newListingPhotos = [];
+      this.userMenuOpen = false;
 
       this.init();
     }
 
-    loadInventory() {
-      try {
-        const saved = localStorage.getItem('hub_inventory_v2');
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-        }
-      } catch (e) {}
-      return window.inventoryData || [];
-    }
-
-    saveInventory() {
-      try {
-        localStorage.setItem('hub_inventory_v2', JSON.stringify(this.inventory));
-      } catch (e) {}
-    }
-
-    loadRequests() {
-      try {
-        const saved = localStorage.getItem('hub_requests_v2');
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-        }
-      } catch (e) {}
-      return window.INITIAL_REQUESTS || [];
-    }
-
-    saveRequests() {
-      try {
-        localStorage.setItem('hub_requests_v2', JSON.stringify(this.requests));
-      } catch (e) {}
-    }
-
     t(key) {
-      const dict = window.TRANSLATIONS && window.TRANSLATIONS[this.lang];
-      return (dict && dict[key]) || key;
+      const dict = (window.TRANSLATIONS && window.TRANSLATIONS[this.lang]) || {};
+      return dict[key] || key;
     }
 
     showToast(message, type = 'info') {
@@ -145,7 +107,8 @@
 
       const toast = document.createElement('div');
       toast.className = 'hub-toast';
-      toast.innerHTML = `<span>✨</span><span>${message}</span>`;
+      const icon = type === 'success' ? '✅' : type === 'error' ? '⚠️' : '✨';
+      toast.innerHTML = `<span>${icon}</span><span>${message}</span>`;
       container.appendChild(toast);
 
       setTimeout(() => {
@@ -169,20 +132,51 @@
       this.render();
     }
 
-    setRole(newRole) {
-      this.role = newRole;
-      if (newRole === 'provider') {
-        this.currentView = 'provider-dashboard';
-      } else {
-        this.currentView = 'marketplace';
+    switchView(viewName, category = null) {
+      this.currentView = viewName;
+      if (category) {
+        this.selectedCategory = category;
       }
-      this.showToast(newRole === 'provider' ? "Switched to Provider Dashboard" : "Switched to Seeker Mode", "info");
+      this.userMenuOpen = false;
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      this.render();
+    }
+
+    resetFilters() {
+      this.searchQuery = '';
+      this.searchLocation = 'All Locations (MMR)';
+      this.searchStartDate = '';
+      this.searchEndDate = '';
+      this.searchQuantity = 1;
+      this.searchBookingType = 'All';
+      this.searchSortBy = 'smartMatch';
+      this.minRatingFilter = 0;
+      this.selectedCategory = 'all';
+      this.showToast('All filters and search criteria reset.', 'info');
       this.render();
     }
 
     init() {
       document.documentElement.setAttribute('data-theme', this.theme);
+      
+      // Listen to auth changes
+      if (window.authService) {
+        window.authService.onAuthChange(() => {
+          this.render();
+        });
+      }
+
       this.render();
+    }
+
+    escapeHtml(str) {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
     }
 
     // --- Core Render Routine ---
@@ -207,6 +201,11 @@
 
     // --- Header Component ---
     renderHeader() {
+      const user = window.authService ? window.authService.getCurrentUser() : null;
+      const isAuth = window.authService && window.authService.isAuthenticated();
+      const isProvider = window.authService && window.authService.isProvider();
+      const bookings = user ? (window.bookingService ? window.bookingService.getUserBookings(user.email, isProvider ? 'provider' : 'seeker') : []) : [];
+
       return `
         <header class="hub-header">
           <div class="hub-container">
@@ -220,68 +219,65 @@
                 </div>
               </div>
 
-              <!-- Navigation Links -->
+              <!-- Main Navigation Links -->
               <nav class="hub-nav">
-                <a href="#marketplace" class="hub-nav-link ${this.currentView === 'marketplace' ? 'active' : ''}" data-view="marketplace">
-                  ${this.t('marketplace')}
+                <a class="hub-nav-link ${this.currentView === 'explore' ? 'active' : ''}" data-nav="explore">
+                  ${this.t('explore')}
                 </a>
-                <a href="#resources" class="hub-nav-link ${this.currentView === 'resources' ? 'active' : ''}" data-view="resources">
+                <a class="hub-nav-link ${this.currentView === 'spaces' ? 'active' : ''}" data-nav="spaces">
+                  ${this.t('spaces')}
+                </a>
+                <a class="hub-nav-link ${this.currentView === 'resources' ? 'active' : ''}" data-nav="resources">
                   ${this.t('resources')}
                 </a>
-                <a href="#providers" class="hub-nav-link ${this.currentView === 'providers' ? 'active' : ''}" data-view="providers">
+                <a class="hub-nav-link ${this.currentView === 'providers' ? 'active' : ''}" data-nav="providers">
                   ${this.t('providers')}
                 </a>
-                <a href="#how-it-works" class="hub-nav-link ${this.currentView === 'how-it-works' ? 'active' : ''}" data-view="how-it-works">
+                <a class="hub-nav-link ${this.currentView === 'how-it-works' ? 'active' : ''}" data-nav="how-it-works">
                   ${this.t('howItWorks')}
-                </a>
-                <a href="#negotiations" class="hub-nav-link ${this.currentView === 'negotiations' ? 'active' : ''}" data-view="negotiations">
-                  ${this.t('negotiations')}
                 </a>
               </nav>
 
-              <!-- Header Controls Right -->
+              <!-- Header Right Controls -->
               <div class="hub-header-actions">
-                <!-- Language Switcher -->
+                <!-- Location Selector Pill -->
+                <div class="hub-header-loc-badge" id="btn-quick-loc-toggle" title="MMR Geographic Scope">
+                  📍 <span>${this.searchLocation === 'All Locations (MMR)' ? 'MMR Regional Hub' : this.searchLocation.split(',')[0]}</span> ▼
+                </div>
+
+                <!-- Language Toggle -->
                 <button class="hub-lang-toggle" id="btn-lang-toggle" title="Switch Language">
                   🌐 ${this.lang === 'en' ? 'हिन्दी' : 'English'}
                 </button>
 
-                <!-- Theme Switcher -->
+                <!-- Theme Toggle -->
                 <button class="hub-icon-btn" id="btn-theme-toggle" title="Toggle Light/Dark Theme">
                   ${this.theme === 'light' ? '🌙' : '☀️'}
                 </button>
 
-                <!-- Role Switcher (Provider ↔ Seeker) -->
-                <div class="hub-role-switch">
-                  <button class="hub-role-btn ${this.role === 'seeker' ? 'active' : ''}" id="btn-role-seeker">
-                    🔍 ${this.t('seekerMode')}
-                  </button>
-                  <button class="hub-role-btn ${this.role === 'provider' ? 'active' : ''}" id="btn-role-provider">
-                    💼 ${this.t('providerMode')}
-                  </button>
-                </div>
-
-                <!-- Notifications Bell -->
+                <!-- Notifications Dropdown -->
                 <div style="position: relative;">
                   <button class="hub-icon-btn" id="btn-notifications-toggle" title="${this.t('notifications')}">
                     🔔
-                    <span class="hub-badge-count">${this.requests.length}</span>
+                    ${bookings.length > 0 ? `<span class="hub-badge-count">${bookings.length}</span>` : ''}
                   </button>
 
                   ${this.notificationsOpen ? `
-                    <div class="hub-notifications-dropdown" style="position: absolute; top: 48px; right: 0; width: 320px; background: var(--bg-surface); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); box-shadow: var(--shadow-xl); padding: 1rem; z-index: 1100;">
-                      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+                    <div class="hub-user-menu-dropdown" style="width: 320px; top: 48px; right: 0;">
+                      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--border-subtle);">
                         <strong style="font-size: 0.9rem;">${this.t('notifications')}</strong>
                         <span style="font-size: 0.75rem; color: var(--primary); cursor: pointer;" id="btn-close-notifs">✕</span>
                       </div>
                       <div style="display: flex; flex-direction: column; gap: 0.5rem; max-height: 260px; overflow-y: auto;">
-                        ${this.requests.slice(0, 4).map(r => `
-                          <div style="padding: 0.65rem; border-radius: var(--radius-sm); background: var(--bg-muted); font-size: 0.78rem;">
-                            <div style="font-weight: 700; color: var(--text-primary);">${r.assetTitle}</div>
-                            <div style="color: var(--text-secondary); margin-top: 2px;">${r.notes}</div>
-                            <div style="font-size: 0.7rem; color: var(--text-muted); margin-top: 4px;">Status: ${r.status} • ${r.paymentStatus}</div>
-                          </div>
-                        `).join('')}
+                        ${bookings.length === 0 ? `<div style="font-size: 0.8rem; color: var(--text-muted); text-align: center; padding: 1rem 0;">${this.t('noNotifications')}</div>` : 
+                          bookings.slice(0, 4).map(b => `
+                            <div style="padding: 0.65rem; border-radius: var(--radius-sm); background: var(--bg-muted); font-size: 0.78rem;">
+                              <div style="font-weight: 700; color: var(--text-primary);">${this.escapeHtml(b.resourceTitle)}</div>
+                              <div style="color: var(--text-secondary); margin-top: 2px;">${b.startDate} to ${b.endDate} (${b.days} days)</div>
+                              <div style="font-size: 0.7rem; color: var(--primary); margin-top: 4px; font-weight: 600;">Status: ${b.status} • ${b.paymentStatus}</div>
+                            </div>
+                          `).join('')
+                        }
                       </div>
                     </div>
                   ` : ''}
@@ -291,6 +287,54 @@
                 <button class="hub-btn-primary" id="btn-header-list-resource">
                   ${this.t('listResource')}
                 </button>
+
+                <!-- Authentication / User Menu -->
+                ${isAuth ? `
+                  <div class="hub-user-menu">
+                    <button class="hub-user-avatar-btn" id="btn-user-menu-toggle">
+                      <div class="hub-avatar-circle">${(user.contactPerson || user.businessName || 'U').charAt(0).toUpperCase()}</div>
+                      <span style="font-size: 0.82rem; font-weight: 700; max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                        ${this.escapeHtml(user.businessName.split(' ')[0])}
+                      </span>
+                      <span style="font-size: 0.7rem; color: var(--text-muted);">▼</span>
+                    </button>
+
+                    ${this.userMenuOpen ? `
+                      <div class="hub-user-menu-dropdown">
+                        <div style="padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--border-subtle); margin-bottom: 0.35rem;">
+                          <div style="font-weight: 800; font-size: 0.88rem; color: var(--text-primary);">${this.escapeHtml(user.businessName)}</div>
+                          <div style="font-size: 0.72rem; color: var(--text-muted);">${this.escapeHtml(user.email)}</div>
+                          <div style="font-size: 0.72rem; color: var(--primary); font-weight: 700; margin-top: 2px;">Role: ${user.role || 'Enterprise Partner'}</div>
+                        </div>
+
+                        <button class="hub-user-menu-item" data-action="go-dashboard">
+                          📊 <span>${isProvider ? this.t('providerDashboard') : this.t('seekerDashboard')}</span>
+                        </button>
+                        
+                        <button class="hub-user-menu-item" data-action="switch-role">
+                          🔄 <span>Switch to ${isProvider ? 'Seeker Mode' : 'Provider Mode'}</span>
+                        </button>
+
+                        <button class="hub-user-menu-item" data-action="go-profile-settings">
+                          ⚙️ <span>${this.t('profileSettings')}</span>
+                        </button>
+
+                        <div style="height: 1px; background: var(--border-subtle); margin: 0.25rem 0;"></div>
+
+                        <button class="hub-user-menu-item" data-action="logout" style="color: #ef4444;">
+                          🚪 <span>${this.t('logout')}</span>
+                        </button>
+                      </div>
+                    ` : ''}
+                  </div>
+                ` : `
+                  <button class="hub-btn-secondary" id="btn-header-login">
+                    ${this.t('signIn')}
+                  </button>
+                  <button class="hub-btn-primary" id="btn-header-signup">
+                    ${this.t('signUp')}
+                  </button>
+                `}
               </div>
             </div>
           </div>
@@ -300,24 +344,41 @@
 
     // --- Main View Dispatcher ---
     renderMainView() {
-      if (this.currentView === 'provider-dashboard') {
-        return this.renderProviderDashboard();
+      if (this.currentView === 'spaces') {
+        return this.renderSpacesView();
       }
-      if (this.currentView === 'negotiations') {
-        return this.renderNegotiationsCenter();
-      }
-      if (this.currentView === 'how-it-works') {
-        return this.renderHowItWorks();
+      if (this.currentView === 'resources') {
+        return this.renderResourcesView();
       }
       if (this.currentView === 'providers') {
         return this.renderProvidersDirectory();
       }
-      return this.renderMarketplace();
+      if (this.currentView === 'how-it-works') {
+        return this.renderHowItWorks();
+      }
+      if (this.currentView === 'seeker-dashboard') {
+        return this.renderSeekerDashboard();
+      }
+      if (this.currentView === 'provider-dashboard') {
+        return this.renderProviderDashboard();
+      }
+      return this.renderExploreMarketplace();
     }
 
-    // --- Marketplace View ---
-    renderMarketplace() {
-      const filtered = this.getFilteredInventory();
+    // --- Explore Marketplace View ---
+    renderExploreMarketplace() {
+      const filtered = window.resourceService ? window.resourceService.queryResources({
+        searchQuery: this.searchQuery,
+        category: this.selectedCategory,
+        location: this.searchLocation,
+        startDate: this.searchStartDate,
+        endDate: this.searchEndDate,
+        bookingType: this.searchBookingType,
+        minRating: this.minRatingFilter,
+        sortBy: this.searchSortBy
+      }) : [];
+
+      const mmrRegions = window.locationService ? window.locationService.getLocationsList() : [];
 
       return `
         <!-- 1. Cinematic Hero Section -->
@@ -329,15 +390,6 @@
               </div>
               <h1 class="hub-hero-heading">${this.t('heroHeading')}</h1>
               <p class="hub-hero-subtext">${this.t('heroSubtext')}</p>
-
-              <div class="hub-hero-ctas">
-                <button class="hub-btn-primary" id="hero-btn-explore" style="padding: 0.75rem 1.75rem; font-size: 1rem;">
-                  ${this.t('exploreResources')}
-                </button>
-                <button class="hub-btn-secondary" id="hero-btn-list" style="padding: 0.75rem 1.75rem; font-size: 1rem; background: rgba(255,255,255,0.15); color: #ffffff; border-color: rgba(255,255,255,0.3);">
-                  ${this.t('listYourResource')}
-                </button>
-              </div>
 
               <div class="hub-hero-badges">
                 <div class="hub-hero-badge-item">
@@ -371,23 +423,23 @@
                   />
                 </div>
 
-                <!-- Location -->
+                <!-- MMR Location Selector -->
                 <div class="hub-search-field">
                   <label class="hub-search-label">📍 ${this.t('location')}</label>
                   <select id="search-location-select" class="hub-search-select">
-                    ${(window.MMR_REGIONS || []).map(loc => `
-                      <option value="${loc}" ${this.searchLocation === loc ? 'selected' : ''}>${loc}</option>
+                    ${mmrRegions.map(loc => `
+                      <option value="${this.escapeHtml(loc)}" ${this.searchLocation === loc ? 'selected' : ''}>${this.escapeHtml(loc)}</option>
                     `).join('')}
                   </select>
                 </div>
 
-                <!-- Required From -->
+                <!-- Required From Date -->
                 <div class="hub-search-field">
                   <label class="hub-search-label">📅 ${this.t('requiredFrom')}</label>
                   <input type="date" id="search-start-date" class="hub-search-input" value="${this.searchStartDate}" />
                 </div>
 
-                <!-- Required Until -->
+                <!-- Required Until Date -->
                 <div class="hub-search-field">
                   <label class="hub-search-label">📅 ${this.t('requiredUntil')}</label>
                   <input type="date" id="search-end-date" class="hub-search-input" value="${this.searchEndDate}" />
@@ -404,10 +456,10 @@
                   <label class="hub-search-label">⚡ ${this.t('bookingType')}</label>
                   <div class="hub-booking-switch-box">
                     <button type="button" class="hub-booking-switch-btn ${this.searchBookingType === 'Planned' ? 'active planned' : ''}" id="btn-toggle-planned">
-                      📅 ${this.t('plannedBooking')}
+                      📅 Planned
                     </button>
                     <button type="button" class="hub-booking-switch-btn ${this.searchBookingType === 'Emergency' ? 'active emergency' : ''}" id="btn-toggle-emergency">
-                      ⚡ ${this.t('emergencyBooking')}
+                      ⚡ Emergency
                     </button>
                   </div>
                 </div>
@@ -420,7 +472,7 @@
             </div>
           </div>
 
-          <!-- 3. Horizontal Category Navigation Bar -->
+          <!-- 3. Clean Category Navigation (Removed Audio, Whole Chain, Free Booking) -->
           <div class="hub-category-nav-wrapper">
             <div class="hub-category-nav">
               ${(window.CATEGORIES || []).map(cat => `
@@ -432,372 +484,206 @@
             </div>
           </div>
 
-          <!-- Results Header & Active Filters -->
+          <!-- 4. Results Header, Active Filters & Sorting -->
           <div class="hub-results-meta">
             <div class="hub-results-count">
               ${this.t('showingResults')} <strong>${filtered.length}</strong> ${this.t('verifiedResourcesFound')}
             </div>
 
-            ${(this.selectedCategory !== 'all' || this.searchBookingType !== 'All' || this.searchQuery) ? `
-              <button class="hub-btn-outline" id="btn-clear-filters">
+            <div class="hub-filter-sort-controls">
+              <!-- Sort Selector -->
+              <select id="sort-by-select" class="hub-search-select" style="width: auto; padding: 0.45rem 0.85rem; font-size: 0.82rem;">
+                <option value="smartMatch" ${this.searchSortBy === 'smartMatch' ? 'selected' : ''}>🎯 Sort: Smart Match Score</option>
+                <option value="priceAsc" ${this.searchSortBy === 'priceAsc' ? 'selected' : ''}>💵 Price: Low to High</option>
+                <option value="priceDesc" ${this.searchSortBy === 'priceDesc' ? 'selected' : ''}>💎 Price: High to Low</option>
+                <option value="rating" ${this.searchSortBy === 'rating' ? 'selected' : ''}>⭐ Rating: Highest First</option>
+                <option value="distance" ${this.searchSortBy === 'distance' ? 'selected' : ''}>📍 Distance from BKC</option>
+              </select>
+
+              <!-- Reset / Clear Filters Button -->
+              <button class="hub-btn-outline" id="btn-reset-filters">
                 ✕ ${this.t('clearFilters')}
               </button>
-            ` : ''}
+            </div>
           </div>
 
-          <!-- 4. Resource Cards Grid -->
+          <!-- 5. Resource Cards Grid -->
           <div class="hub-resource-grid">
-            ${filtered.map(item => this.renderResourceCard(item)).join('')}
-          </div>
-        </div>
-
-        <!-- 5. Trust & Benefits Feature Row -->
-        <section class="hub-trust-section">
-          <div class="hub-container">
-            <div class="hub-section-header">
-              <h2 class="hub-section-title">${this.t('trustHeading')}</h2>
-              <p class="hub-section-subtitle">${this.t('trustSubheading')}</p>
-            </div>
-
-            <div class="hub-benefits-grid">
-              <div class="hub-benefit-card">
-                <div class="hub-benefit-icon">🛡️</div>
-                <h4 class="hub-benefit-title">${this.t('benefit1Title')}</h4>
-                <p class="hub-benefit-desc">${this.t('benefit1Desc')}</p>
+            ${filtered.length === 0 ? `
+              <div style="grid-column: 1 / -1; text-align: center; padding: 4rem 1rem; background: var(--bg-surface); border: 1px dashed var(--border-strong); border-radius: var(--radius-xl);">
+                <div style="font-size: 2.5rem; margin-bottom: 0.75rem;">🏨</div>
+                <h3 style="font-family: var(--font-heading); font-size: 1.25rem; font-weight: 800; margin-bottom: 0.5rem;">No matching MMR resources found</h3>
+                <p style="color: var(--text-secondary); font-size: 0.9rem; max-width: 480px; margin: 0 auto 1.5rem;">
+                  Try clearing specific date constraints or broadening your MMR location filter.
+                </p>
+                <button class="hub-btn-primary" id="btn-empty-reset">Reset All Filters</button>
               </div>
-              <div class="hub-benefit-card">
-                <div class="hub-benefit-icon">🎯</div>
-                <h4 class="hub-benefit-title">${this.t('benefit2Title')}</h4>
-                <p class="hub-benefit-desc">${this.t('benefit2Desc')}</p>
-              </div>
-              <div class="hub-benefit-card">
-                <div class="hub-benefit-icon">⚡</div>
-                <h4 class="hub-benefit-title">${this.t('benefit3Title')}</h4>
-                <p class="hub-benefit-desc">${this.t('benefit3Desc')}</p>
-              </div>
-              <div class="hub-benefit-card">
-                <div class="hub-benefit-icon">🤝</div>
-                <h4 class="hub-benefit-title">${this.t('benefit4Title')}</h4>
-                <p class="hub-benefit-desc">${this.t('benefit4Desc')}</p>
-              </div>
-              <div class="hub-benefit-card">
-                <div class="hub-benefit-icon">🔒</div>
-                <h4 class="hub-benefit-title">${this.t('benefit5Title')}</h4>
-                <p class="hub-benefit-desc">${this.t('benefit5Desc')}</p>
-              </div>
-              <div class="hub-benefit-card">
-                <div class="hub-benefit-icon">📸</div>
-                <h4 class="hub-benefit-title">${this.t('benefit6Title')}</h4>
-                <p class="hub-benefit-desc">${this.t('benefit6Desc')}</p>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <!-- 6. Idle Resources Call to Action Banner -->
-        <section class="hub-cta-section">
-          <div class="hub-container">
-            <div class="hub-cta-inner">
-              <h2 class="hub-cta-title">${this.t('ctaHeading')}</h2>
-              <p class="hub-cta-subtitle">${this.t('ctaSubheading')}</p>
-              <div class="hub-cta-buttons">
-                <button class="hub-btn-primary" id="cta-btn-list" style="padding: 0.85rem 2rem; font-size: 1.05rem;">
-                  ${this.t('ctaListBtn')}
-                </button>
-                <button class="hub-btn-secondary" id="cta-btn-explore" style="padding: 0.85rem 2rem; font-size: 1.05rem; background: rgba(255,255,255,0.1); color: #ffffff; border-color: rgba(255,255,255,0.25);">
-                  ${this.t('ctaExploreBtn')}
-                </button>
-              </div>
-            </div>
-          </div>
-        </section>
-      `;
-    }
-
-    // --- Single Resource Card ---
-    renderResourceCard(item) {
-      const dist = calculateDistanceKm(DEPOT_COORDS.lat, DEPOT_COORDS.lng, item.coordinates.lat, item.coordinates.lng);
-      const matchScore = calculateMatchScore(item, dist);
-
-      return `
-        <div class="hub-card" data-id="${item.id}">
-          <!-- Media Header -->
-          <div class="hub-card-media" data-action="view-detail" data-id="${item.id}" style="cursor: pointer;">
-            <img src="${item.image}" alt="${item.title}" class="hub-card-img" />
-
-            <div class="hub-card-badges-top">
-              <span class="hub-badge hub-badge-verified">
-                ✓ ${this.t('verifiedBusiness')}
-              </span>
-
-              <span class="hub-badge hub-badge-match" data-action="view-match" data-id="${item.id}" title="View Match Breakdown">
-                🎯 ${matchScore}% ${this.t('matchScore')}
-              </span>
-            </div>
-
-            <span class="hub-badge-booking-type">
-              ${item.bookingType === 'Emergency' ? '⚡ ' + this.t('emergencyBooking') : '📅 ' + this.t('plannedBooking')}
-            </span>
-
-            <span class="hub-badge-photos-count">
-              📷 ${item.photos ? item.photos.length : 1}
-            </span>
-          </div>
-
-          <!-- Body Content -->
-          <div class="hub-card-body">
-            <div class="hub-card-meta-top">
-              <span class="hub-card-location">
-                📍 ${item.location} • ${dist} km ${this.t('away')}
-              </span>
-
-              <span class="hub-status-badge ${item.availabilityStatus.toLowerCase()}">
-                ${item.availabilityStatus === 'Available' ? '🟢 ' + this.t('available') : ''}
-                ${item.availabilityStatus === 'Negotiating' ? '🟡 ' + this.t('negotiating') : ''}
-                ${item.availabilityStatus === 'Pre-booked' ? '🔵 ' + this.t('preBooked') : ''}
-                ${item.availabilityStatus === 'Unavailable' ? '🔴 ' + this.t('unavailable') : ''}
-                ${item.availabilityStatus === 'Completed' ? '⚪ ' + this.t('completed') : ''}
-              </span>
-            </div>
-
-            <h3 class="hub-card-title" data-action="view-detail" data-id="${item.id}" style="cursor: pointer;">
-              ${item.title}
-            </h3>
-
-            <div class="hub-card-provider">
-              🏢 ${item.shopName}
-            </div>
-
-            <div class="hub-card-rating">
-              <span class="hub-card-rating-star">⭐</span>
-              <span>${item.rating}</span>
-              <span class="hub-card-reviews-count">(${item.reviewsCount} ${this.t('reviews')}) • ${item.completedRentals} ${this.t('rentalsCompleted')}</span>
-            </div>
-
-            <div class="hub-card-specs">
-              ${(item.specifications || []).slice(0, 2).map(s => `
-                <span class="hub-card-spec-tag">✓ ${s}</span>
-              `).join('')}
-            </div>
-
-            <div class="hub-card-footer">
-              <div class="hub-card-price-row">
-                <div>
-                  <span class="hub-card-price-value">₹${item.pricePerDay.toLocaleString()}</span>
-                  <span class="hub-card-price-unit"> ${this.t('perDay')}</span>
-                </div>
-                <div class="hub-card-quantity">
-                  ${this.t('availableUnits')}: ${item.quantityAvailable}
-                </div>
-              </div>
-
-              <div class="hub-card-actions">
-                <button class="hub-btn-primary" data-action="request-rental" data-id="${item.id}">
-                  ${this.t('requestRental')}
-                </button>
-                <button class="hub-btn-outline" data-action="negotiate" data-id="${item.id}">
-                  ${this.t('negotiate')}
-                </button>
-              </div>
-            </div>
+            ` : filtered.map(item => this.renderResourceCard(item)).join('')}
           </div>
         </div>
       `;
     }
 
-    // --- Provider Dashboard View ---
-    renderProviderDashboard() {
-      const providerItems = this.inventory.filter(item => {
-        if (this.providerFilterStatus === 'All') return true;
-        return item.availabilityStatus.toLowerCase() === this.providerFilterStatus.toLowerCase();
-      });
+    // --- Spaces Dedicated View ---
+    renderSpacesView() {
+      const spaces = window.resourceService ? window.resourceService.queryResources({
+        searchQuery: this.searchQuery,
+        category: 'Spaces',
+        location: this.searchLocation,
+        startDate: this.searchStartDate,
+        endDate: this.searchEndDate
+      }) : [];
 
       return `
-        <div class="hub-container" style="padding: 2.5rem 1.5rem;">
-          <div class="hub-dashboard-header">
-            <div>
-              <h1 class="hub-dashboard-title">${this.t('providerOverview')}</h1>
-              <p style="color: var(--text-secondary); margin-top: 0.25rem;">
-                Managing enterprise listings for <strong>${this.currentUser.businessName}</strong> (GSTIN: 27AAACI1234A1Z5)
-              </p>
+        <div class="hub-container" style="padding-top: 2rem;">
+          <div style="margin-bottom: 2rem;">
+            <div style="display: flex; align-items: center; gap: 0.5rem; color: var(--primary); font-weight: 700; font-size: 0.85rem; text-transform: uppercase;">
+              <span>🏨</span> Banquet Halls & Luxury Event Venues in MMR
             </div>
+            <h1 style="font-family: var(--font-heading); font-size: 2.25rem; font-weight: 800; margin-top: 0.25rem;">
+              B2B Spaces & Venues
+            </h1>
+            <p style="color: var(--text-secondary); font-size: 1rem; max-width: 720px; margin-top: 0.5rem;">
+              Verified pillarless ballrooms, private manicured lawns, and commercial cloud kitchens available for advance corporate booking and high-volume wedding production.
+            </p>
+          </div>
 
-            <button class="hub-btn-primary" id="btn-provider-add-resource">
-              ${this.t('addNewResource')}
+          <div class="hub-results-meta">
+            <div class="hub-results-count">
+              Showing <strong>${spaces.length}</strong> verified MMR spaces
+            </div>
+            <button class="hub-btn-outline" id="btn-reset-filters">
+              ✕ Reset Filters
             </button>
           </div>
 
-          <!-- Metrics Row -->
-          <div class="hub-metrics-grid">
-            <div class="hub-metric-card">
-              <div class="hub-metric-header">
-                <span class="hub-metric-label">${this.t('activeResources')}</span>
-                <div class="hub-metric-icon" style="background: var(--primary-subtle); color: var(--primary);">📦</div>
-              </div>
-              <div class="hub-metric-val">${providerItems.length}</div>
-            </div>
-
-            <div class="hub-metric-card">
-              <div class="hub-metric-header">
-                <span class="hub-metric-label">${this.t('bookedResources')}</span>
-                <div class="hub-metric-icon" style="background: var(--status-prebooked-bg); color: var(--status-prebooked);">🔒</div>
-              </div>
-              <div class="hub-metric-val">2</div>
-            </div>
-
-            <div class="hub-metric-card">
-              <div class="hub-metric-header">
-                <span class="hub-metric-label">${this.t('pendingRequests')}</span>
-                <div class="hub-metric-icon" style="background: var(--accent-gold-subtle); color: var(--accent-gold);">⏳</div>
-              </div>
-              <div class="hub-metric-val">${this.requests.filter(r => r.status === 'Negotiating').length}</div>
-            </div>
-
-            <div class="hub-metric-card">
-              <div class="hub-metric-header">
-                <span class="hub-metric-label">${this.t('utilizationRate')}</span>
-                <div class="hub-metric-icon" style="background: var(--status-available-bg); color: var(--status-available);">📈</div>
-              </div>
-              <div class="hub-metric-val">84.2%</div>
-            </div>
-
-            <div class="hub-metric-card">
-              <div class="hub-metric-header">
-                <span class="hub-metric-label">${this.t('totalRevenue')}</span>
-                <div class="hub-metric-icon" style="background: var(--primary-subtle); color: var(--primary);">💰</div>
-              </div>
-              <div class="hub-metric-val">₹1,88,400</div>
-            </div>
-          </div>
-
-          <!-- Provider Filter Tabs -->
-          <div class="hub-tabs">
-            ${['All', 'Available', 'Negotiating', 'Pre-booked', 'Completed'].map(status => `
-              <button class="hub-tab-btn ${this.providerFilterStatus === status ? 'active' : ''}" data-status="${status}">
-                ${status === 'All' ? this.t('filterAll') : ''}
-                ${status === 'Available' ? this.t('filterAvailable') : ''}
-                ${status === 'Negotiating' ? this.t('filterNegotiating') : ''}
-                ${status === 'Pre-booked' ? this.t('filterPreBooked') : ''}
-                ${status === 'Completed' ? this.t('filterCompleted') : ''}
-              </button>
-            `).join('')}
-          </div>
-
-          <!-- Provider Resource Cards -->
           <div class="hub-resource-grid">
-            ${providerItems.map(item => `
-              <div class="hub-card" data-id="${item.id}">
-                <div class="hub-card-media" data-action="view-detail" data-id="${item.id}">
-                  <img src="${item.image}" alt="${item.title}" class="hub-card-img" />
-                  <span class="hub-status-badge ${item.availabilityStatus.toLowerCase()}" style="position: absolute; top: 0.75rem; left: 0.75rem;">
-                    ${item.availabilityStatus}
-                  </span>
-                </div>
-                <div class="hub-card-body">
-                  <h4 class="hub-card-title">${item.title}</h4>
-                  <div style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.5rem;">
-                    Category: <strong>${item.category}</strong> • ${item.location}
-                  </div>
-                  <div style="font-size: 1.2rem; font-weight: 800; color: var(--text-primary); margin-bottom: 1rem;">
-                    ₹${item.pricePerDay.toLocaleString()} / day
-                  </div>
-                  <div class="hub-card-actions">
-                    <button class="hub-btn-secondary" data-action="view-detail" data-id="${item.id}">
-                      ${this.t('viewDetails')}
-                    </button>
-                    <button class="hub-btn-outline" data-action="view-audit" data-id="${item.id}">
-                      📸 Photo Audit
-                    </button>
-                  </div>
-                </div>
-              </div>
-            `).join('')}
+            ${spaces.map(item => this.renderResourceCard(item)).join('')}
           </div>
         </div>
       `;
     }
 
-    // --- Negotiations Center View ---
-    renderNegotiationsCenter() {
+    // --- Physical Resources Dedicated View ---
+    renderResourcesView() {
+      const physical = window.resourceService ? window.resourceService.queryResources({
+        searchQuery: this.searchQuery,
+        category: this.selectedCategory === 'Spaces' ? 'all' : this.selectedCategory,
+        location: this.searchLocation,
+        startDate: this.searchStartDate,
+        endDate: this.searchEndDate
+      }).filter(i => i.category !== 'Spaces') : [];
+
       return `
-        <div class="hub-container" style="padding: 2.5rem 1.5rem;">
-          <div class="hub-dashboard-header">
-            <div>
-              <h1 class="hub-dashboard-title">${this.t('negotiationsCenter')}</h1>
-              <p style="color: var(--text-secondary); margin-top: 0.25rem;">
-                Direct B2B negotiation, counter-offers, and custom contracts.
-              </p>
+        <div class="hub-container" style="padding-top: 2rem;">
+          <div style="margin-bottom: 2rem;">
+            <div style="display: flex; align-items: center; gap: 0.5rem; color: var(--primary); font-weight: 700; font-size: 0.85rem; text-transform: uppercase;">
+              <span>🎪</span> Commercial Hospitality Equipment & Fleet
             </div>
+            <h1 style="font-family: var(--font-heading); font-size: 2.25rem; font-weight: 800; margin-top: 0.25rem;">
+              Commercial Equipment & Logistics
+            </h1>
+            <p style="color: var(--text-secondary); font-size: 1rem; max-width: 720px; margin-top: 0.5rem;">
+              Rational combi ovens, thermo-king refrigerated trucks, 125 kVA silent acoustic diesel generators, Chiavari banquet furniture, and German pagoda tents.
+            </p>
           </div>
 
-          <div class="hub-tabs">
-            <button class="hub-tab-btn ${this.negotiationTab === 'incoming' ? 'active' : ''}" data-neg-tab="incoming">
-              📥 ${this.t('incomingOffers')} (${this.requests.length})
-            </button>
-            <button class="hub-tab-btn ${this.negotiationTab === 'counter' ? 'active' : ''}" data-neg-tab="counter">
-              🔄 ${this.t('counterOffers')}
-            </button>
-            <button class="hub-tab-btn ${this.negotiationTab === 'accepted' ? 'active' : ''}" data-neg-tab="accepted">
-              ✅ ${this.t('acceptedOffers')}
+          <div class="hub-results-meta">
+            <div class="hub-results-count">
+              Showing <strong>${physical.length}</strong> verified equipment assets across MMR
+            </div>
+            <button class="hub-btn-outline" id="btn-reset-filters">
+              ✕ Reset Filters
             </button>
           </div>
 
-          <div class="hub-negotiation-grid">
-            ${this.requests.map(req => `
-              <div class="hub-negotiation-card">
-                <div class="hub-negotiation-header">
-                  <div class="hub-negotiation-parties">
-                    <span>🏢 ${req.providerBusiness}</span>
-                    <span>↔</span>
-                    <span>🛒 ${req.seekerBusiness}</span>
-                  </div>
+          <div class="hub-resource-grid">
+            ${physical.map(item => this.renderResourceCard(item)).join('')}
+          </div>
+        </div>
+      `;
+    }
 
-                  <span class="hub-status-badge ${req.status.toLowerCase()}">
-                    ${req.status}
-                  </span>
+    // --- Providers Directory View ---
+    renderProvidersDirectory() {
+      const providers = window.providerService ? window.providerService.getProviders(this.searchLocation) : [];
+
+      return `
+        <div class="hub-container" style="padding-top: 2rem;">
+          <div style="margin-bottom: 2rem;">
+            <div style="display: flex; align-items: center; gap: 0.5rem; color: var(--primary); font-weight: 700; font-size: 0.85rem; text-transform: uppercase;">
+              <span>🏢</span> MMR Verified Enterprise Directory
+            </div>
+            <h1 style="font-family: var(--font-heading); font-size: 2.25rem; font-weight: 800; margin-top: 0.25rem;">
+              Verified Hospitality Providers
+            </h1>
+            <p style="color: var(--text-secondary); font-size: 1rem; max-width: 720px; margin-top: 0.5rem;">
+              Explore trusted B2B hospitality businesses, hotels, catering depots, and logistics operators across Mumbai, Thane, and Navi Mumbai.
+            </p>
+          </div>
+
+          <div class="hub-results-meta">
+            <div class="hub-results-count">
+              Showing <strong>${providers.length}</strong> registered enterprise suppliers in MMR
+            </div>
+            <button class="hub-btn-primary" id="btn-join-as-provider">
+              💼 Apply for Provider Verification
+            </button>
+          </div>
+
+          <div class="hub-providers-grid">
+            ${providers.map(prov => `
+              <div class="hub-provider-card">
+                <div class="hub-provider-header">
+                  <div class="hub-provider-avatar">${prov.businessName.charAt(0)}</div>
+                  <div class="hub-provider-info">
+                    <div class="hub-provider-name">
+                      ${this.escapeHtml(prov.businessName)}
+                      ${prov.verificationStatus === 'Verified' && prov.verified ? `
+                        <span class="hub-badge hub-badge-verified" title="100% KYC & GSTIN Verified">✓ Verified</span>
+                      ` : `
+                        <span style="font-size: 0.72rem; padding: 0.2rem 0.5rem; border-radius: var(--radius-xs); background: var(--bg-muted); color: var(--text-muted); font-weight: 600;">
+                          ${prov.verificationStatus || 'Pending Verification'}
+                        </span>
+                      `}
+                    </div>
+                    <div class="hub-provider-type">${this.escapeHtml(prov.businessType)}</div>
+                    <div class="hub-provider-location">📍 ${this.escapeHtml(prov.location)}</div>
+                  </div>
                 </div>
 
-                <div style="font-size: 1.05rem; font-weight: 700; color: var(--text-primary);">
-                  ${req.assetTitle}
+                <p style="font-size: 0.85rem; color: var(--text-secondary); line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">
+                  ${this.escapeHtml(prov.description)}
+                </p>
+
+                <!-- Provider Image Gallery -->
+                ${prov.photos && prov.photos.length > 0 ? `
+                  <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px;">
+                    ${prov.photos.slice(0, 3).map(p => `
+                      <img src="${p}" alt="${this.escapeHtml(prov.businessName)}" style="width: 100%; height: 75px; object-fit: cover; border-radius: var(--radius-sm);" />
+                    `).join('')}
+                  </div>
+                ` : ''}
+
+                <div class="hub-provider-stats">
+                  <div>
+                    <div class="hub-provider-stat-value">⭐ ${prov.rating}</div>
+                    <div class="hub-provider-stat-label">${prov.reviewsCount} Reviews</div>
+                  </div>
+                  <div>
+                    <div class="hub-provider-stat-value">📦 ${prov.activeFleetCount || 3}</div>
+                    <div class="hub-provider-stat-label">Active Fleet</div>
+                  </div>
+                  <div>
+                    <div class="hub-provider-stat-value">✅ ${prov.completedRentals || 45}</div>
+                    <div class="hub-provider-stat-label">Rentals</div>
+                  </div>
                 </div>
 
-                <div class="hub-negotiation-prices">
-                  <div class="hub-price-item">
-                    <span class="hub-price-item-label">${this.t('listedPrice')}</span>
-                    <span class="hub-price-item-val">₹${req.dailyRate.toLocaleString()} / day</span>
-                  </div>
-                  <div class="hub-price-item">
-                    <span class="hub-price-item-label">${this.t('proposedPrice')}</span>
-                    <span class="hub-price-item-val" style="color: var(--primary);">
-                      ₹${(req.negotiationOffer || req.dailyRate).toLocaleString()}
-                    </span>
-                  </div>
-                  <div class="hub-price-item">
-                    <span class="hub-price-item-label">${this.t('rentalDuration')}</span>
-                    <span class="hub-price-item-val">${req.days} ${this.t('days')} (${req.startDate} to ${req.endDate})</span>
-                  </div>
-                </div>
-
-                <div style="background: var(--bg-muted); padding: 0.75rem; border-radius: var(--radius-sm); font-size: 0.85rem;">
-                  <strong>Message:</strong> ${req.notes}
-                </div>
-
-                <div class="hub-negotiation-actions">
-                  ${req.status === 'Negotiating' ? `
-                    <button class="hub-btn-primary" data-action="accept-offer" data-req-id="${req.id}">
-                      ✓ ${this.t('acceptOffer')}
-                    </button>
-                    <button class="hub-btn-outline" data-action="open-counter" data-req-id="${req.id}">
-                      🔄 ${this.t('counterOffer')}
-                    </button>
-                    <button class="hub-btn-secondary" style="color: var(--status-unavailable);" data-action="reject-offer" data-req-id="${req.id}">
-                      ✕ ${this.t('rejectOffer')}
-                    </button>
-                  ` : `
-                    <span style="color: var(--status-available); font-weight: 700;">
-                      ✓ Escrow Verified (${req.paymentStatus})
-                    </span>
-                  `}
+                <div style="display: flex; gap: 0.5rem; margin-top: auto;">
+                  <button class="hub-btn-primary" style="flex: 1;" data-view-provider-fleet="${this.escapeHtml(prov.businessName)}">
+                    View Listed Fleet
+                  </button>
                 </div>
               </div>
             `).join('')}
@@ -808,74 +694,414 @@
 
     // --- How It Works View ---
     renderHowItWorks() {
+      const steps = [
+        { num: 1, icon: "👤", title: "Create Enterprise Account", desc: "Register your hospitality company with work email, KYC verification, and select Seeker or Provider mode." },
+        { num: 2, icon: "📍", title: "Explore MMR Marketplace", desc: "Filter shared resources strictly within Mumbai, Thane, and Navi Mumbai planning clusters." },
+        { num: 3, icon: "🔍", title: "Inspect 3–4 Photo Gallery", desc: "Review authentic multi-angle photos, technical specs, FSSAI compliance, and verified licenses." },
+        { num: 4, icon: "📅", title: "Live Calendar Availability", desc: "Select required dates on our visual collision-free calendar showing available vs locked slots." },
+        { num: 5, icon: "🔒", title: "Calendar Lock & Token Advance", desc: "Submit rental request. Pay 20% token to instantly lock provider calendar dates and prevent double-booking." },
+        { num: 6, icon: "🛡️", title: "Simulated Escrow Protection", desc: "Funds and refundable security deposits remain safely in escrow until service delivery sign-off." },
+        { num: 7, icon: "🚚", title: "Dispatch & Site Delivery", desc: "Dedicated logistics transport with live temperature logging or depot self-pickup across MMR." },
+        { num: 8, icon: "🔄", title: "Release & Automatic Availability", desc: "Upon booking completion or cancellation, calendar dates automatically release back to the marketplace." },
+        { num: 9, icon: "⭐", title: "Verified Enterprise Review", desc: "Leave authentic feedback and ratings accessible exclusively to verified completed bookings." }
+      ];
+
       return `
-        <div class="hub-container" style="padding: 3.5rem 1.5rem;">
-          <div class="hub-section-header">
-            <h1 class="hub-section-title">${this.t('howItWorks')}</h1>
-            <p class="hub-section-subtitle">A seamless shared economy for the hospitality ecosystem.</p>
+        <div class="hub-container" style="padding-top: 2rem;">
+          <div class="hub-how-it-works-hero">
+            <div style="display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.35rem 0.85rem; background: var(--primary-subtle); color: var(--primary); border-radius: var(--radius-full); font-size: 0.8rem; font-weight: 700; margin-bottom: 0.75rem;">
+              ⚡ End-to-End Operational Workflow
+            </div>
+            <h1 style="font-family: var(--font-heading); font-size: 2.4rem; font-weight: 800;">
+              How HospitalityHub Operates
+            </h1>
+            <p style="color: var(--text-secondary); font-size: 1.05rem; margin-top: 0.5rem;">
+              Built specifically for hotels, caterers, banquet venues, and event production enterprises across Mumbai Metropolitan Region.
+            </p>
           </div>
 
-          <div class="hub-benefits-grid" style="margin-top: 2rem;">
-            <div class="hub-benefit-card">
-              <div class="hub-benefit-icon">1</div>
-              <h3 class="hub-benefit-title">For Providers: Monetize Idle Assets</h3>
-              <p class="hub-benefit-desc">
-                List banquet halls, commercial kitchens, refrigerated transport, and staging gear. Set custom daily rates, security deposits, and availability windows.
-              </p>
-            </div>
+          <div class="hub-timeline-grid">
+            ${steps.map(s => `
+              <div class="hub-step-card">
+                <div class="hub-step-number">${s.num}</div>
+                <div style="font-size: 1.5rem; margin-bottom: 0.5rem;">${s.icon}</div>
+                <h3 class="hub-step-title">${s.title}</h3>
+                <p class="hub-step-desc">${s.desc}</p>
+              </div>
+            `).join('')}
+          </div>
 
-            <div class="hub-benefit-card">
-              <div class="hub-benefit-icon">2</div>
-              <h3 class="hub-benefit-title">For Seekers: Smart Match & Instant Dispatch</h3>
-              <p class="hub-benefit-desc">
-                Find verified resources across Mumbai, Thane, and Navi Mumbai. Choose planned advance booking or 45-minute emergency rapid dispatch.
-              </p>
-            </div>
-
-            <div class="hub-benefit-card">
-              <div class="hub-benefit-icon">3</div>
-              <h3 class="hub-benefit-title">Automated Calendar Lock & Escrow</h3>
-              <p class="hub-benefit-desc">
-                Confirmed bookings lock the provider's schedule to prevent double-bookings. Payments and security deposits remain protected in escrow until photo audit completion.
-              </p>
+          <div style="background: linear-gradient(135deg, var(--primary) 0%, #115e59 100%); color: #ffffff; border-radius: var(--radius-xl); padding: 3rem 2rem; text-align: center; margin-bottom: 4rem;">
+            <h2 style="font-family: var(--font-heading); font-size: 1.85rem; font-weight: 800; margin-bottom: 0.75rem;">
+              Ready to Share or Procure Commercial Assets?
+            </h2>
+            <p style="font-size: 1rem; opacity: 0.9; max-width: 600px; margin: 0 auto 1.75rem;">
+              Join Mumbai's premier verified B2B hospitality resource network today.
+            </p>
+            <div style="display: flex; justify-content: center; gap: 1rem; flex-wrap: wrap;">
+              <button class="hub-btn-primary" style="background: #ffffff; color: var(--primary);" id="btn-hero-explore-from-hiw">
+                Explore MMR Resources
+              </button>
+              <button class="hub-btn-secondary" style="background: rgba(255,255,255,0.15); color: #ffffff; border-color: rgba(255,255,255,0.4);" id="btn-hero-list-from-hiw">
+                List Your Equipment
+              </button>
             </div>
           </div>
         </div>
       `;
     }
 
-    // --- Providers Directory View ---
-    renderProvidersDirectory() {
+    // --- Seeker Dashboard View ---
+    renderSeekerDashboard() {
+      const user = window.authService ? window.authService.getCurrentUser() : null;
+      if (!user) {
+        return `<div class="hub-container" style="padding: 4rem 1rem; text-align: center;"><h3>Please sign in to access your seeker dashboard.</h3><button class="hub-btn-primary" id="btn-header-login" style="margin-top: 1rem;">Sign In</button></div>`;
+      }
+
+      const bookings = window.bookingService ? window.bookingService.getUserBookings(user.email, 'seeker') : [];
+      const confirmed = bookings.filter(b => b.status === 'Confirmed');
+      const completed = bookings.filter(b => b.status === 'Completed');
+      const cancelled = bookings.filter(b => b.status === 'Cancelled');
+
       return `
-        <div class="hub-container" style="padding: 3.5rem 1.5rem;">
-          <div class="hub-section-header">
-            <h1 class="hub-section-title">Verified Hospitality Providers</h1>
-            <p class="hub-section-subtitle">Premier hotels, caterers, and equipment depots across the Mumbai Metropolitan Region.</p>
+        <div class="hub-container" style="padding-top: 2rem;">
+          <div class="hub-dashboard-header">
+            <div>
+              <div style="font-size: 0.82rem; font-weight: 700; color: var(--primary); text-transform: uppercase;">
+                Seeker Procurement Hub
+              </div>
+              <h1 class="hub-dashboard-title">${this.escapeHtml(user.businessName)}</h1>
+              <div style="font-size: 0.85rem; color: var(--text-muted);">
+                Logged in as ${this.escapeHtml(user.contactPerson || user.email)} • 📍 ${this.escapeHtml(user.location || 'Mumbai, MMR')}
+              </div>
+            </div>
+
+            <div style="display: flex; gap: 0.75rem;">
+              <button class="hub-btn-outline" data-action="go-profile-settings">⚙️ Settings</button>
+              <button class="hub-btn-primary" data-nav="explore">🔍 Explore Assets</button>
+            </div>
           </div>
 
-          <div class="hub-benefits-grid">
-            ${(window.DEMO_USERS || []).map(user => `
-              <div class="hub-benefit-card">
-                <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem;">
-                  <div class="hub-benefit-icon">🏢</div>
-                  <div>
-                    <h3 style="font-size: 1.15rem; font-weight: 800;">${user.businessName}</h3>
-                    <span style="font-size: 0.78rem; color: var(--primary); font-weight: 700;">✓ Verified B2B Partner</span>
-                  </div>
-                </div>
-                <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.75rem;">
-                  📍 ${user.location} • ⭐ ${user.rating} (${user.reviewsCount} reviews)
-                </p>
-                <p style="font-size: 0.85rem; color: var(--text-muted);">
-                  Contact: ${user.contactPerson} (${user.email})
-                </p>
-                <div style="margin-top: 1rem;">
-                  <button class="hub-btn-primary" data-action="explore-provider-fleet" data-name="${user.businessName}">
-                    View Fleet (${user.activeListingsCount || 3} items)
-                  </button>
-                </div>
+          <!-- Quick Stats -->
+          <div class="hub-stats-overview">
+            <div class="hub-stat-box">
+              <div class="hub-stat-box-title">Active / Upcoming Bookings</div>
+              <div class="hub-stat-box-number" style="color: var(--primary);">${confirmed.length}</div>
+            </div>
+            <div class="hub-stat-box">
+              <div class="hub-stat-box-title">Completed Rentals</div>
+              <div class="hub-stat-box-number">${completed.length}</div>
+            </div>
+            <div class="hub-stat-box">
+              <div class="hub-stat-box-title">Cancelled Bookings</div>
+              <div class="hub-stat-box-number" style="color: #ef4444;">${cancelled.length}</div>
+            </div>
+            <div class="hub-stat-box">
+              <div class="hub-stat-box-title">Total Bookings</div>
+              <div class="hub-stat-box-number">${bookings.length}</div>
+            </div>
+          </div>
+
+          <!-- Bookings Table -->
+          <div style="margin-bottom: 3.5rem;">
+            <h3 style="font-family: var(--font-heading); font-size: 1.25rem; font-weight: 800; margin-bottom: 1rem;">
+              My Resource Reservations & Calendar Locks
+            </h3>
+
+            ${bookings.length === 0 ? `
+              <div style="padding: 3rem; text-align: center; background: var(--card-bg); border: 1px dashed var(--card-border); border-radius: var(--radius-lg);">
+                <p style="color: var(--text-secondary); margin-bottom: 1rem;">You have not made any bookings yet.</p>
+                <button class="hub-btn-primary" data-nav="explore">Explore Available MMR Resources</button>
               </div>
-            `).join('')}
+            ` : `
+              <div style="overflow-x: auto;">
+                <table class="hub-dashboard-table">
+                  <thead>
+                    <tr>
+                      <th>Booking ID</th>
+                      <th>Resource</th>
+                      <th>Provider</th>
+                      <th>Dates & Duration</th>
+                      <th>Total Value</th>
+                      <th>Escrow Status</th>
+                      <th>Booking Status</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${bookings.map(b => `
+                      <tr>
+                        <td style="font-weight: 700;">#${b.id}</td>
+                        <td style="font-weight: 600; color: var(--text-primary);">${this.escapeHtml(b.resourceTitle)}</td>
+                        <td>${this.escapeHtml(b.providerBusiness)}</td>
+                        <td>
+                          <div style="font-weight: 600;">${b.startDate} → ${b.endDate}</div>
+                          <div style="font-size: 0.75rem; color: var(--text-muted);">${b.days} days</div>
+                        </td>
+                        <td style="font-weight: 700;">₹${Number(b.totalAmount).toLocaleString()}</td>
+                        <td>
+                          <span style="font-size: 0.78rem; font-weight: 600; color: var(--primary);">
+                            ${b.paymentStatus || 'Escrow Locked'}
+                          </span>
+                        </td>
+                        <td>
+                          <span class="hub-badge ${b.status === 'Confirmed' ? 'hub-badge-verified' : b.status === 'Completed' ? 'hub-badge-smartmatch' : ''}" style="${b.status === 'Cancelled' ? 'background: #ef4444; color: #fff;' : ''}">
+                            ${b.status}
+                          </span>
+                        </td>
+                        <td>
+                          <div style="display: flex; gap: 0.35rem;">
+                            ${b.status === 'Confirmed' ? `
+                              <button class="hub-btn-outline" style="font-size: 0.72rem; padding: 0.25rem 0.5rem; color: #ef4444; border-color: #ef4444;" data-action="cancel-booking" data-id="${b.id}">
+                                Cancel & Release
+                              </button>
+                            ` : ''}
+
+                            ${(b.status === 'Completed' || b.status === 'Confirmed') ? `
+                              <button class="hub-btn-primary" style="font-size: 0.72rem; padding: 0.25rem 0.5rem;" data-action="write-review" data-resource-id="${b.resourceId}" data-booking-id="${b.id}">
+                                ⭐ Review
+                              </button>
+                            ` : ''}
+                          </div>
+                        </td>
+                      </tr>
+                    `).join('')}
+                  </tbody>
+                </table>
+              </div>
+            `}
+          </div>
+        </div>
+      `;
+    }
+
+    // --- Provider Dashboard View ---
+    renderProviderDashboard() {
+      const user = window.authService ? window.authService.getCurrentUser() : null;
+      if (!user) {
+        return `<div class="hub-container" style="padding: 4rem 1rem; text-align: center;"><h3>Please sign in to access your provider hub.</h3><button class="hub-btn-primary" id="btn-header-login" style="margin-top: 1rem;">Sign In</button></div>`;
+      }
+
+      const myResources = window.resourceService ? window.resourceService.getProviderResources(user.businessName || user.email) : [];
+      const bookings = window.bookingService ? window.bookingService.getUserBookings(user.email, 'provider') : [];
+      const status = user.verificationStatus || 'Not Submitted';
+      const isVerified = status === 'Verified' && user.verified;
+
+      return `
+        <div class="hub-container" style="padding-top: 2rem;">
+          <div class="hub-dashboard-header">
+            <div>
+              <div style="font-size: 0.82rem; font-weight: 700; color: var(--primary); text-transform: uppercase;">
+                Provider Fleet & Revenue Center
+              </div>
+              <h1 class="hub-dashboard-title" style="display: flex; align-items: center; gap: 0.5rem;">
+                ${this.escapeHtml(user.businessName)}
+                ${isVerified ? `<span class="hub-badge hub-badge-verified">✓ Verified Supplier</span>` : `
+                  <span style="font-size: 0.75rem; padding: 0.25rem 0.6rem; border-radius: var(--radius-sm); background: var(--bg-muted); color: var(--text-muted); font-weight: 700;">
+                    Status: ${status}
+                  </span>
+                `}
+              </h1>
+              <div style="font-size: 0.85rem; color: var(--text-muted);">
+                KYC / GSTIN: ${user.gstin || 'Pending Verification'} • 📍 ${this.escapeHtml(user.location || 'Mumbai, MMR')}
+              </div>
+            </div>
+
+            <div style="display: flex; gap: 0.75rem;">
+              <button class="hub-btn-secondary" id="btn-open-verification-modal">
+                🛡️ Verification Dossier
+              </button>
+              <button class="hub-btn-primary" id="btn-open-add-resource">
+                + Add New Resource
+              </button>
+            </div>
+          </div>
+
+          <!-- Verification Alert Banner if Not Verified -->
+          ${!isVerified ? `
+            <div style="background: var(--accent-gold-subtle); border: 1px solid var(--accent-gold-border); border-radius: var(--radius-lg); padding: 1.25rem; margin-bottom: 2rem; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1rem;">
+              <div>
+                <strong style="color: var(--accent-gold); font-size: 0.95rem;">⚠️ Verification Status: ${status}</strong>
+                <p style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 2px;">
+                  Complete your business verification with GSTIN, trade license, and 3–4 authentic facility photos to unlock the public Verified Supplier badge.
+                </p>
+              </div>
+              <button class="hub-btn-primary" id="btn-banner-verify">
+                Complete Verification Now
+              </button>
+            </div>
+          ` : ''}
+
+          <!-- Quick Stats -->
+          <div class="hub-stats-overview">
+            <div class="hub-stat-box">
+              <div class="hub-stat-box-title">Active Listed Fleet</div>
+              <div class="hub-stat-box-number" style="color: var(--primary);">${myResources.length}</div>
+            </div>
+            <div class="hub-stat-box">
+              <div class="hub-stat-box-title">Incoming / Active Bookings</div>
+              <div class="hub-stat-box-number">${bookings.filter(b => b.status === 'Confirmed').length}</div>
+            </div>
+            <div class="hub-stat-box">
+              <div class="hub-stat-box-title">Completed Rentals</div>
+              <div class="hub-stat-box-number">${bookings.filter(b => b.status === 'Completed').length + 12}</div>
+            </div>
+            <div class="hub-stat-box">
+              <div class="hub-stat-box-title">Provider Rating</div>
+              <div class="hub-stat-box-number">⭐ ${user.rating || 4.9}</div>
+            </div>
+          </div>
+
+          <!-- My Listed Fleet Table -->
+          <div style="margin-bottom: 3.5rem;">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem;">
+              <h3 style="font-family: var(--font-heading); font-size: 1.25rem; font-weight: 800;">
+                My Listed Commercial Assets
+              </h3>
+              <button class="hub-btn-primary" id="btn-open-add-resource-inline" style="font-size: 0.82rem; padding: 0.4rem 0.85rem;">
+                + Add Resource
+              </button>
+            </div>
+
+            ${myResources.length === 0 ? `
+              <div style="padding: 3rem; text-align: center; background: var(--card-bg); border: 1px dashed var(--card-border); border-radius: var(--radius-lg);">
+                <p style="color: var(--text-secondary); margin-bottom: 1rem;">You have not listed any resources yet.</p>
+                <button class="hub-btn-primary" id="btn-empty-add-resource">+ List First Commercial Asset</button>
+              </div>
+            ` : `
+              <div style="overflow-x: auto;">
+                <table class="hub-dashboard-table">
+                  <thead>
+                    <tr>
+                      <th>Image</th>
+                      <th>Title</th>
+                      <th>Category</th>
+                      <th>Location</th>
+                      <th>Price / Day</th>
+                      <th>Deposit</th>
+                      <th>Status</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${myResources.map(item => `
+                      <tr>
+                        <td style="width: 60px;">
+                          <img src="${item.image || (item.photos && item.photos[0])}" alt="${this.escapeHtml(item.title)}" style="width: 50px; height: 50px; object-fit: cover; border-radius: var(--radius-sm);" />
+                        </td>
+                        <td style="font-weight: 700; color: var(--text-primary); max-width: 240px;">
+                          ${this.escapeHtml(item.title)}
+                        </td>
+                        <td>${item.category}</td>
+                        <td>${item.location}</td>
+                        <td style="font-weight: 700;">₹${Number(item.pricePerDay).toLocaleString()}</td>
+                        <td>₹${Number(item.securityDeposit || 0).toLocaleString()}</td>
+                        <td>
+                          <span class="hub-badge ${item.availabilityStatus === 'Available' ? 'hub-badge-verified' : 'hub-badge-smartmatch'}">
+                            ${item.availabilityStatus}
+                          </span>
+                        </td>
+                        <td>
+                          <button class="hub-btn-outline" style="font-size: 0.72rem; padding: 0.25rem 0.5rem; color: #ef4444; border-color: #ef4444;" data-action="delete-resource" data-id="${item.id}">
+                            Remove
+                          </button>
+                        </td>
+                      </tr>
+                    `).join('')}
+                  </tbody>
+                </table>
+              </div>
+            `}
+          </div>
+        </div>
+      `;
+    }
+
+    // --- Resource Card Component (3–4 Photos Carousel) ---
+    renderResourceCard(item) {
+      const photos = (item.photos && item.photos.length > 0) ? item.photos : [item.image || "https://images.unsplash.com/photo-1519167758481-83f550bb49b3?auto=format&fit=crop&w=1200&q=80"];
+      const coverPhoto = photos[0];
+      const matchScore = item.smartMatchScore || 94;
+      const isLocked = item.isCurrentlyLocked || item.availabilityStatus === 'Pre-booked';
+
+      return `
+        <div class="hub-card" data-resource-id="${item.id}">
+          <!-- Card Media Gallery -->
+          <div class="hub-card-media">
+            <img src="${coverPhoto}" alt="${this.escapeHtml(item.title)}" class="hub-card-image" id="card-img-${item.id}" />
+
+            <!-- Badges Top Left -->
+            <div class="hub-card-badge-top-left">
+              ${item.verified ? `
+                <span class="hub-badge hub-badge-verified">✓ Verified Provider</span>
+              ` : ''}
+              ${item.instantDispatchAvailable ? `
+                <span class="hub-badge hub-badge-emergency">⚡ 45-Min Dispatch</span>
+              ` : ''}
+            </div>
+
+            <!-- Badges Top Right -->
+            <div class="hub-card-badge-top-right">
+              <span class="hub-badge hub-badge-smartmatch">${matchScore}% Match</span>
+            </div>
+
+            <!-- Multi-Photo Thumbnail Dots (3–4 Photos) -->
+            ${photos.length > 1 ? `
+              <div class="hub-card-photo-dots">
+                ${photos.map((p, idx) => `
+                  <div
+                    class="hub-photo-dot ${idx === 0 ? 'active' : ''}"
+                    data-card-dot="${item.id}"
+                    data-img-src="${p}"
+                    data-idx="${idx}"
+                    title="Photo ${idx + 1} of ${photos.length}"
+                  ></div>
+                `).join('')}
+              </div>
+            ` : ''}
+          </div>
+
+          <!-- Card Body -->
+          <div class="hub-card-body">
+            <div class="hub-card-category-loc">
+              <span class="hub-card-category">${item.category}</span>
+              <span class="hub-card-location">📍 ${this.escapeHtml(item.location)}</span>
+            </div>
+
+            <h3 class="hub-card-title" title="${this.escapeHtml(item.title)}">
+              ${this.escapeHtml(item.title)}
+            </h3>
+
+            <div class="hub-card-provider">
+              🏢 <span>${this.escapeHtml(item.shopName)}</span>
+              <span style="color: var(--text-muted); font-size: 0.72rem;">• ⭐ ${item.rating || 4.9} (${item.reviewsCount || 0})</span>
+            </div>
+
+            <!-- Key Specs Tags -->
+            <div class="hub-card-specs-list">
+              ${(item.specifications || []).slice(0, 2).map(spec => `
+                <span class="hub-card-spec-tag">✓ ${this.escapeHtml(spec)}</span>
+              `).join('')}
+            </div>
+
+            <div class="hub-card-divider"></div>
+
+            <!-- Pricing & Booking Actions -->
+            <div class="hub-card-footer">
+              <div class="hub-card-pricing">
+                <div class="hub-card-price-amount">₹${Number(item.pricePerDay).toLocaleString()}</div>
+                <div class="hub-card-price-unit">${this.t('perDay')} • Dep: ₹${Number(item.securityDeposit || 0).toLocaleString()}</div>
+              </div>
+
+              <div class="hub-card-actions">
+                <button class="hub-btn-outline" data-action="view-details" data-id="${item.id}">
+                  ${this.t('viewDetails')}
+                </button>
+                <button class="hub-btn-primary" data-action="book-now" data-id="${item.id}">
+                  ${this.t('bookNow')}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       `;
@@ -887,68 +1113,59 @@
         <footer class="hub-footer">
           <div class="hub-container">
             <div class="hub-footer-grid">
-              <div class="hub-footer-brand">
-                <div class="hub-logo">
+              <div class="hub-footer-col">
+                <div class="hub-logo" style="margin-bottom: 1rem;">
                   <div class="hub-logo-icon">🏨</div>
                   <div class="hub-logo-text">
                     <span class="hub-logo-title">${this.t('brandName')}</span>
                     <span class="hub-logo-tagline">${this.t('brandTagline')}</span>
                   </div>
                 </div>
-                <p class="hub-footer-desc">${this.t('footerAbout')}</p>
+                <p style="font-size: 0.85rem; color: var(--text-secondary); line-height: 1.6; max-width: 380px;">
+                  ${this.t('footerAbout')}
+                </p>
               </div>
 
-              <div>
-                <h5 class="hub-footer-col-title">${this.t('marketplaceCol')}</h5>
-                <ul class="hub-footer-links">
-                  <li><a href="#spaces" class="hub-footer-link" data-cat="Spaces">${this.t('catSpaces')}</a></li>
-                  <li><a href="#kitchen" class="hub-footer-link" data-cat="Kitchen">${this.t('catKitchen')}</a></li>
-                  <li><a href="#vehicles" class="hub-footer-link" data-cat="Vehicle">${this.t('catVehicles')}</a></li>
-                  <li><a href="#audio" class="hub-footer-link" data-cat="Audio">${this.t('catAudio')}</a></li>
-                  <li><a href="#coldchain" class="hub-footer-link" data-cat="ColdChain">${this.t('catColdChain')}</a></li>
+              <div class="hub-footer-col">
+                <h4>Marketplace</h4>
+                <ul>
+                  <li><a data-nav="explore">Explore All Assets</a></li>
+                  <li><a data-nav="spaces">Banquet Spaces & Venues</a></li>
+                  <li><a data-nav="resources">Commercial Kitchen Equipment</a></li>
+                  <li><a data-nav="resources">Refrigerated Transport Fleet</a></li>
+                  <li><a data-nav="providers">Verified Provider Directory</a></li>
                 </ul>
               </div>
 
-              <div>
-                <h5 class="hub-footer-col-title">${this.t('businessCol')}</h5>
-                <ul class="hub-footer-links">
-                  <li><a href="#list" class="hub-footer-link" id="footer-link-list">${this.t('listResource')}</a></li>
-                  <li><a href="#dashboard" class="hub-footer-link" id="footer-link-dash">${this.t('providerHub')}</a></li>
-                  <li><a href="#negotiations" class="hub-footer-link" id="footer-link-neg">${this.t('negotiationsCenter')}</a></li>
-                  <li><a href="#verified" class="hub-footer-link">${this.t('fssaiGstVerified')}</a></li>
+              <div class="hub-footer-col">
+                <h4>MMR Coverage</h4>
+                <ul>
+                  <li><a>South & Central Mumbai</a></li>
+                  <li><a>Western & Eastern Suburbs</a></li>
+                  <li><a>Thane & Ghodbunder Corridor</a></li>
+                  <li><a>Navi Mumbai (Vashi & Panvel)</a></li>
+                  <li><a>Bhiwandi & Extended MMR</a></li>
                 </ul>
               </div>
 
-              <div>
-                <h5 class="hub-footer-col-title">${this.t('supportCol')}</h5>
-                <ul class="hub-footer-links">
-                  <li><a href="#support" class="hub-footer-link">${this.t('contactSupport')}</a></li>
-                  <li><a href="#how" class="hub-footer-link" data-view="how-it-works">${this.t('howItWorks')}</a></li>
-                  <li><a href="#audit" class="hub-footer-link">${this.t('auditGuarantee')}</a></li>
-                  <li><a href="#deposit" class="hub-footer-link">${this.t('depositRefundable')}</a></li>
-                </ul>
-              </div>
-
-              <div>
-                <h5 class="hub-footer-col-title">${this.t('legalCol')}</h5>
-                <ul class="hub-footer-links">
-                  <li><a href="#terms" class="hub-footer-link">${this.t('termsOfService')}</a></li>
-                  <li><a href="#privacy" class="hub-footer-link">${this.t('privacyPolicy')}</a></li>
-                  <li><a href="#escrow" class="hub-footer-link">${this.t('escrowPolicy')}</a></li>
+              <div class="hub-footer-col">
+                <h4>Trust & Security</h4>
+                <ul>
+                  <li><a>100% KYC & GSTIN Verification</a></li>
+                  <li><a>Real-Time Calendar Lock Engine</a></li>
+                  <li><a>Tokenized Escrow Protection</a></li>
+                  <li><a>2-Step Condition Photo Audits</a></li>
+                  <li><a>24/7 MMR Logistics Support</a></li>
                 </ul>
               </div>
             </div>
 
             <div class="hub-footer-bottom">
               <div>${this.t('copyright')}</div>
-
-              <div class="hub-footer-bottom-controls">
-                <button class="hub-lang-toggle" id="btn-footer-lang">
-                  🌐 ${this.lang === 'en' ? 'हिन्दी' : 'English'}
-                </button>
-                <button class="hub-icon-btn" id="btn-footer-theme">
-                  ${this.theme === 'light' ? '🌙' : '☀️'}
-                </button>
+              <div style="display: flex; gap: 1.5rem;">
+                <a>Privacy Policy</a>
+                <a>Commercial Terms & NOC</a>
+                <a>Escrow Dispute Policy</a>
               </div>
             </div>
           </div>
@@ -956,457 +1173,500 @@
       `;
     }
 
-    // --- Modals Renderer ---
+    // --- Modals Container ---
     renderModals() {
       return `
-        ${this.renderDetailModal()}
-        ${this.renderMatchScoreModal()}
-        ${this.renderCheckoutModal()}
-        ${this.renderPhotoUploadModal()}
-        ${this.renderCounterOfferModal()}
-        ${this.renderPhotoAuditModal()}
+        ${this.renderAuthModal()}
+        ${this.renderResourceDetailModal()}
+        ${this.renderBookingModal()}
+        ${this.renderVerificationModal()}
+        ${this.renderAddResourceModal()}
+        ${this.renderReviewModal()}
+        ${this.renderProfileSettingsModal()}
       `;
     }
 
-    // Modal: Detail & Carousel
-    renderDetailModal() {
-      if (!this.selectedResource) return '';
-      const item = this.selectedResource;
-      const photos = item.photos || [item.image];
-      const activePhoto = photos[this.activePhotoIndex] || item.image;
+    // 1. Auth Modal (Sign In & Sign Up)
+    renderAuthModal() {
+      if (!this.authModalOpen) return '';
+
+      return `
+        <div class="hub-modal-overlay" id="modal-auth-overlay">
+          <div class="hub-modal" style="max-width: 480px;">
+            <div class="hub-modal-header">
+              <h3 class="hub-modal-title">
+                ${this.authModalMode === 'login' ? this.t('signInTitle') : this.t('signUpTitle')}
+              </h3>
+              <button class="hub-modal-close-btn" id="btn-close-auth-modal">✕</button>
+            </div>
+
+            <div class="hub-modal-body">
+              <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 1.25rem;">
+                ${this.authModalMode === 'login' ? this.t('loginSubtitle') : this.t('signupSubtitle')}
+              </p>
+
+              ${this.authModalMode === 'login' ? `
+                <!-- Login Form -->
+                <form id="form-login" style="display: flex; flex-direction: column; gap: 1rem;">
+                  <div class="hub-search-field">
+                    <label class="hub-search-label">${this.t('workEmail')}</label>
+                    <input type="email" id="login-email" class="hub-search-input" placeholder="procurement@imperialbanquets.in" required />
+                  </div>
+
+                  <div class="hub-search-field">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                      <label class="hub-search-label">${this.t('password')}</label>
+                      <span style="font-size: 0.75rem; color: var(--primary); cursor: pointer;" id="btn-switch-forgot">Forgot?</span>
+                    </div>
+                    <input type="password" id="login-password" class="hub-search-input" placeholder="••••••••" required />
+                  </div>
+
+                  <div style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.82rem; color: var(--text-secondary);">
+                    <input type="checkbox" id="login-remember" checked />
+                    <label for="login-remember">${this.t('rememberMe')}</label>
+                  </div>
+
+                  <button type="submit" class="hub-btn-primary" style="padding: 0.75rem; font-size: 0.95rem; width: 100%;">
+                    ${this.t('loginBtn')}
+                  </button>
+
+                  <div style="text-align: center; font-size: 0.85rem; color: var(--text-muted); margin-top: 0.5rem;">
+                    ${this.t('noAccount')}
+                    <span style="color: var(--primary); font-weight: 700; cursor: pointer;" id="btn-switch-signup">${this.t('signUp')}</span>
+                  </div>
+                </form>
+              ` : `
+                <!-- Registration Form -->
+                <form id="form-register" style="display: flex; flex-direction: column; gap: 0.9rem;">
+                  <div class="hub-search-field">
+                    <label class="hub-search-label">${this.t('accountTypeLabel')}</label>
+                    <div class="hub-booking-switch-box">
+                      <button type="button" class="hub-booking-switch-btn active planned" id="btn-reg-seeker">
+                        🔍 ${this.t('seekerType')}
+                      </button>
+                      <button type="button" class="hub-booking-switch-btn" id="btn-reg-provider">
+                        💼 ${this.t('providerType')}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div class="hub-search-field">
+                    <label class="hub-search-label">${this.t('businessName')}</label>
+                    <input type="text" id="reg-business-name" class="hub-search-input" placeholder="e.g. Royal Palace Banquets Ltd" required />
+                  </div>
+
+                  <div class="hub-search-field">
+                    <label class="hub-search-label">${this.t('workEmail')}</label>
+                    <input type="email" id="reg-email" class="hub-search-input" placeholder="contact@royalpalace.in" required />
+                  </div>
+
+                  <div class="hub-search-field">
+                    <label class="hub-search-label">${this.t('phone')}</label>
+                    <input type="tel" id="reg-phone" class="hub-search-input" placeholder="+91 98200 12345" required />
+                  </div>
+
+                  <div class="hub-search-field">
+                    <label class="hub-search-label">${this.t('location')}</label>
+                    <select id="reg-location" class="hub-search-select">
+                      ${(window.locationService ? window.locationService.getLocationsList().filter(l => l !== 'All Locations (MMR)') : []).map(loc => `
+                        <option value="${this.escapeHtml(loc)}">${this.escapeHtml(loc)}</option>
+                      `).join('')}
+                    </select>
+                  </div>
+
+                  <div class="hub-search-field">
+                    <label class="hub-search-label">${this.t('password')}</label>
+                    <input type="password" id="reg-password" class="hub-search-input" placeholder="Min 8 chars with mixed case & numbers" required />
+                    <div id="password-strength-meter" style="font-size: 0.72rem; margin-top: 2px; font-weight: 600;"></div>
+                  </div>
+
+                  <div class="hub-search-field">
+                    <label class="hub-search-label">${this.t('confirmPassword')}</label>
+                    <input type="password" id="reg-confirm-password" class="hub-search-input" placeholder="Repeat password" required />
+                  </div>
+
+                  <button type="submit" class="hub-btn-primary" style="padding: 0.75rem; font-size: 0.95rem; width: 100%; margin-top: 0.5rem;">
+                    ${this.t('registerBtn')}
+                  </button>
+
+                  <div style="text-align: center; font-size: 0.85rem; color: var(--text-muted); margin-top: 0.25rem;">
+                    ${this.t('alreadyHaveAccount')}
+                    <span style="color: var(--primary); font-weight: 700; cursor: pointer;" id="btn-switch-login">${this.t('signIn')}</span>
+                  </div>
+                </form>
+              `}
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    // 2. Resource Details Modal (Full Specifications, 3–4 Photo Gallery, Live Calendar)
+    renderResourceDetailModal() {
+      if (!this.detailModalItem) return '';
+      const item = this.detailModalItem;
+      const photos = (item.photos && item.photos.length > 0) ? item.photos : [item.image];
+      const activePhoto = photos[this.detailActivePhotoIdx] || photos[0];
+      const lockedDates = window.bookingService ? window.bookingService.getLockedDatesForResource(item.id) : [];
+      const reviews = window.reviewService ? window.reviewService.getReviewsForResource(item.id) : [];
+      const ratingSummary = window.reviewService ? window.reviewService.getRatingSummary(item.id) : { averageRating: 4.9, totalReviews: 0 };
 
       return `
         <div class="hub-modal-overlay" id="modal-detail-overlay">
-          <div class="hub-modal">
+          <div class="hub-modal" style="max-width: 860px;">
             <div class="hub-modal-header">
-              <h3 class="hub-modal-title">${item.title}</h3>
-              <button class="hub-modal-close" id="btn-close-detail">✕</button>
+              <div>
+                <span class="hub-card-category">${item.category}</span>
+                <h3 class="hub-modal-title" style="margin-top: 2px;">${this.escapeHtml(item.title)}</h3>
+              </div>
+              <button class="hub-modal-close-btn" id="btn-close-detail-modal">✕</button>
             </div>
 
             <div class="hub-modal-body">
-              <!-- Multi-Photo Carousel -->
-              <div class="hub-gallery-main">
-                <img src="${activePhoto}" alt="${item.title}" class="hub-gallery-img" />
-                ${photos.length > 1 ? `
-                  <button class="hub-gallery-nav-btn prev" id="btn-gallery-prev">‹</button>
-                  <button class="hub-gallery-nav-btn next" id="btn-gallery-next">›</button>
-                  <span class="hub-gallery-counter">
-                    ${this.t('photoCounter')} ${this.activePhotoIndex + 1} ${this.t('of')} ${photos.length}
-                  </span>
-                ` : ''}
+              <!-- 3–4 Photo Interactive Gallery -->
+              <div style="position: relative; width: 100%; height: 340px; border-radius: var(--radius-lg); overflow: hidden; margin-bottom: 1rem; background: var(--bg-muted);">
+                <img src="${activePhoto}" alt="${this.escapeHtml(item.title)}" style="width: 100%; height: 100%; object-fit: cover;" />
+                <div style="position: absolute; bottom: 12px; right: 12px; background: rgba(0,0,0,0.65); color: #fff; padding: 4px 10px; border-radius: var(--radius-full); font-size: 0.75rem; font-weight: 700;">
+                  Photo ${this.detailActivePhotoIdx + 1} of ${photos.length}
+                </div>
               </div>
 
-              <!-- Thumbnails -->
-              ${photos.length > 1 ? `
-                <div class="hub-gallery-thumbs">
-                  ${photos.map((ph, idx) => `
-                    <div class="hub-gallery-thumb ${this.activePhotoIndex === idx ? 'active' : ''}" data-thumb-idx="${idx}">
-                      <img src="${ph}" alt="Thumb" />
+              <!-- Thumbnail Strip -->
+              <div style="display: flex; gap: 8px; margin-bottom: 1.5rem; overflow-x: auto;">
+                ${photos.map((p, idx) => `
+                  <img
+                    src="${p}"
+                    alt="Thumbnail ${idx + 1}"
+                    class="hub-detail-thumb"
+                    data-idx="${idx}"
+                    style="width: 80px; height: 60px; object-fit: cover; border-radius: var(--radius-sm); cursor: pointer; border: 2px solid ${idx === this.detailActivePhotoIdx ? 'var(--primary)' : 'transparent'};"
+                  />
+                `).join('')}
+              </div>
+
+              <!-- Two Column Specs & Booking Sidebar -->
+              <div style="display: grid; grid-template-columns: 1.4fr 1fr; gap: 1.75rem;">
+                <div>
+                  <h4 style="font-family: var(--font-heading); font-size: 1.05rem; font-weight: 700; margin-bottom: 0.5rem;">
+                    ${this.t('description')}
+                  </h4>
+                  <p style="font-size: 0.88rem; color: var(--text-secondary); line-height: 1.6; margin-bottom: 1.25rem;">
+                    ${this.escapeHtml(item.description)}
+                  </p>
+
+                  <h4 style="font-family: var(--font-heading); font-size: 1.05rem; font-weight: 700; margin-bottom: 0.5rem;">
+                    ${this.t('specifications')}
+                  </h4>
+                  <ul style="list-style: none; display: flex; flex-direction: column; gap: 0.45rem; margin-bottom: 1.5rem;">
+                    ${(item.specifications || []).map(spec => `
+                      <li style="font-size: 0.85rem; color: var(--text-primary); display: flex; align-items: center; gap: 0.45rem;">
+                        <span style="color: var(--primary); font-weight: 700;">✓</span> ${this.escapeHtml(spec)}
+                      </li>
+                    `).join('')}
+                  </ul>
+
+                  <!-- Verified Provider Card -->
+                  <div style="background: var(--bg-muted); border-radius: var(--radius-md); padding: 1rem; margin-bottom: 1.5rem;">
+                    <div style="font-size: 0.75rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">
+                      ${this.t('providerProfile')}
                     </div>
-                  `).join('')}
+                    <div style="font-weight: 800; font-size: 0.95rem; color: var(--text-primary); margin-top: 2px;">
+                      ${this.escapeHtml(item.shopName)}
+                    </div>
+                    <div style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 2px;">
+                      📍 ${this.escapeHtml(item.location)} • Avg Response: < 15 mins
+                    </div>
+                  </div>
+
+                  <!-- Verified Reviews Section -->
+                  <div>
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+                      <h4 style="font-family: var(--font-heading); font-size: 1.05rem; font-weight: 700;">
+                        ⭐ ${ratingSummary.averageRating} (${reviews.length} Verified Reviews)
+                      </h4>
+                      <button class="hub-btn-outline" style="font-size: 0.75rem; padding: 0.25rem 0.6rem;" data-action="write-review" data-resource-id="${item.id}">
+                        + Write Review
+                      </button>
+                    </div>
+
+                    <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                      ${reviews.length === 0 ? `
+                        <div style="font-size: 0.82rem; color: var(--text-muted);">${this.t('noReviewsYet')}</div>
+                      ` : reviews.map(r => `
+                        <div style="background: var(--bg-muted); border-radius: var(--radius-sm); padding: 0.75rem;">
+                          <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <strong style="font-size: 0.85rem;">${this.escapeHtml(r.reviewerName)} (${this.escapeHtml(r.reviewerCompany)})</strong>
+                            <span style="color: var(--accent-gold); font-size: 0.85rem;">${'★'.repeat(r.rating)}</span>
+                          </div>
+                          <div style="font-weight: 600; font-size: 0.8rem; color: var(--text-primary); margin-top: 2px;">${this.escapeHtml(r.title)}</div>
+                          <div style="font-size: 0.78rem; color: var(--text-secondary); margin-top: 2px;">${this.escapeHtml(r.comment)}</div>
+                          <div style="font-size: 0.7rem; color: var(--primary); font-weight: 700; margin-top: 4px;">✓ Verified Completed Booking</div>
+                        </div>
+                      `).join('')}
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Right Action Panel -->
+                <div>
+                  <div style="background: var(--bg-surface); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: 1.25rem; box-shadow: var(--shadow-sm); position: sticky; top: 80px;">
+                    <div style="font-family: var(--font-heading); font-size: 1.6rem; font-weight: 800; color: var(--text-primary);">
+                      ₹${Number(item.pricePerDay).toLocaleString()} <span style="font-size: 0.85rem; color: var(--text-muted); font-weight: 500;">/ day</span>
+                    </div>
+                    <div style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 1rem;">
+                      Refundable Deposit: ₹${Number(item.securityDeposit || 0).toLocaleString()}
+                    </div>
+
+                    <!-- Locked Dates Summary -->
+                    <div style="margin-bottom: 1.25rem; font-size: 0.82rem;">
+                      <div style="font-weight: 700; color: var(--text-primary); margin-bottom: 0.35rem;">
+                        📅 Live Calendar Status:
+                      </div>
+                      ${lockedDates.length === 0 ? `
+                        <span style="color: var(--status-available); font-weight: 600;">✓ All dates currently open for booking</span>
+                      ` : `
+                        <div style="color: #ef4444; font-weight: 600; margin-bottom: 2px;">
+                          🔒 Locked Dates:
+                        </div>
+                        <div style="font-size: 0.75rem; color: var(--text-secondary); max-height: 60px; overflow-y: auto;">
+                          ${lockedDates.join(', ')}
+                        </div>
+                      `}
+                    </div>
+
+                    <button class="hub-btn-primary" style="width: 100%; padding: 0.8rem; font-size: 0.95rem;" data-action="book-now" data-id="${item.id}">
+                      📅 ${this.t('proceedCheckout')}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    // 3. Interactive Booking & Calendar Lock Modal
+    renderBookingModal() {
+      if (!this.bookingModalItem) return '';
+      const item = this.bookingModalItem;
+      const lockedDates = window.bookingService ? window.bookingService.getLockedDatesForResource(item.id) : [];
+
+      // Calculate cost breakdown
+      const dailyRate = item.pricePerDay || 0;
+      const days = Math.max(1, this.bookingDays || 1);
+      const subtotal = dailyRate * days;
+      const deposit = item.securityDeposit || 0;
+      const deliveryFee = this.bookingLogistics === 'delivery' ? (item.category === 'Spaces' ? 0 : 850) : 0;
+      const tokenAdvance = Math.round(subtotal * 0.20);
+      const totalEstimated = subtotal + deposit + deliveryFee;
+
+      return `
+        <div class="hub-modal-overlay" id="modal-booking-overlay">
+          <div class="hub-modal" style="max-width: 680px;">
+            <div class="hub-modal-header">
+              <div>
+                <span class="hub-card-category">${item.category}</span>
+                <h3 class="hub-modal-title">Reserve & Lock Calendar Dates</h3>
+              </div>
+              <button class="hub-modal-close-btn" id="btn-close-booking-modal">✕</button>
+            </div>
+
+            <div class="hub-modal-body">
+              <!-- Selected Resource Overview -->
+              <div style="display: flex; gap: 1rem; align-items: center; background: var(--bg-muted); padding: 0.85rem; border-radius: var(--radius-md); margin-bottom: 1.25rem;">
+                <img src="${item.image || (item.photos && item.photos[0])}" alt="${this.escapeHtml(item.title)}" style="width: 65px; height: 65px; object-fit: cover; border-radius: var(--radius-sm);" />
+                <div>
+                  <div style="font-weight: 800; font-size: 0.95rem; color: var(--text-primary);">${this.escapeHtml(item.title)}</div>
+                  <div style="font-size: 0.8rem; color: var(--text-secondary);">🏢 ${this.escapeHtml(item.shopName)} • 📍 ${this.escapeHtml(item.location)}</div>
+                  <div style="font-size: 0.8rem; font-weight: 700; color: var(--primary);">₹${dailyRate.toLocaleString()} / day</div>
+                </div>
+              </div>
+
+              <!-- Date Selection & Calendar Guidance -->
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+                <div class="hub-search-field">
+                  <label class="hub-search-label">📅 Start Date (Check-in / Dispatch)</label>
+                  <input type="date" id="booking-start-date" class="hub-search-input" value="${this.bookingStartDate}" />
+                </div>
+                <div class="hub-search-field">
+                  <label class="hub-search-label">📅 End Date (Return / Handover)</label>
+                  <input type="date" id="booking-end-date" class="hub-search-input" value="${this.bookingEndDate}" />
+                </div>
+              </div>
+
+              <!-- Collision / Locked Dates Notice -->
+              ${lockedDates.length > 0 ? `
+                <div style="background: var(--status-unavailable-bg); border: 1px solid var(--status-unavailable-border); border-radius: var(--radius-md); padding: 0.75rem; margin-bottom: 1rem; font-size: 0.8rem; color: var(--status-unavailable);">
+                  <strong>🔒 Note on Locked Dates:</strong> The dates (${lockedDates.slice(0, 5).join(', ')}${lockedDates.length > 5 ? '...' : ''}) are currently locked by active confirmed bookings and cannot be selected.
                 </div>
               ` : ''}
 
-              <!-- Split Details -->
-              <div class="hub-detail-grid">
-                <div>
-                  <h4 style="font-size: 1.15rem; font-weight: 700; margin-bottom: 0.75rem;">${this.t('description')}</h4>
-                  <p style="color: var(--text-secondary); line-height: 1.6; margin-bottom: 1.5rem;">
-                    ${item.description}
-                  </p>
+              <!-- Fulfillment Mode -->
+              <div class="hub-search-field" style="margin-bottom: 1.25rem;">
+                <label class="hub-search-label">🚚 Fulfillment & Logistics Mode</label>
+                <div class="hub-booking-switch-box">
+                  <button type="button" class="hub-booking-switch-btn ${this.bookingLogistics === 'delivery' ? 'active planned' : ''}" id="btn-booking-delivery">
+                    Dedicated Site Delivery (+₹${deliveryFee})
+                  </button>
+                  <button type="button" class="hub-booking-switch-btn ${this.bookingLogistics === 'pickup' ? 'active planned' : ''}" id="btn-booking-pickup">
+                    Depot Self Pickup (Free)
+                  </button>
+                </div>
+              </div>
 
-                  <h4 style="font-size: 1.15rem; font-weight: 700; margin-bottom: 0.75rem;">${this.t('specifications')}</h4>
-                  <div style="display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 1.5rem;">
-                    ${(item.specifications || []).map(s => `
-                      <div style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.9rem;">
-                        <span style="color: var(--primary); font-weight: 700;">✓</span>
-                        <span>${s}</span>
+              <!-- Escrow Financial Breakdown -->
+              <div style="background: var(--bg-muted); border-radius: var(--radius-lg); padding: 1rem; margin-bottom: 1.5rem;">
+                <div style="font-weight: 700; font-size: 0.85rem; color: var(--text-primary); margin-bottom: 0.65rem;">
+                  ${this.t('calculateTotal')} (${days} ${this.t('days')})
+                </div>
+                
+                <div style="display: flex; justify-content: space-between; font-size: 0.82rem; margin-bottom: 0.35rem;">
+                  <span style="color: var(--text-secondary);">${this.t('baseSubtotal')} (₹${dailyRate.toLocaleString()} × ${days} d)</span>
+                  <span style="font-weight: 600;">₹${subtotal.toLocaleString()}</span>
+                </div>
+
+                <div style="display: flex; justify-content: space-between; font-size: 0.82rem; margin-bottom: 0.35rem;">
+                  <span style="color: var(--text-secondary);">${this.t('securityDeposit')} (100% Refundable)</span>
+                  <span style="font-weight: 600;">₹${deposit.toLocaleString()}</span>
+                </div>
+
+                <div style="display: flex; justify-content: space-between; font-size: 0.82rem; margin-bottom: 0.5rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--border-subtle);">
+                  <span style="color: var(--text-secondary);">Logistics & Fulfillment</span>
+                  <span style="font-weight: 600;">₹${deliveryFee.toLocaleString()}</span>
+                </div>
+
+                <div style="display: flex; justify-content: space-between; font-size: 1rem; font-weight: 800; color: var(--text-primary); margin-bottom: 0.35rem;">
+                  <span>${this.t('totalEstimate')}</span>
+                  <span>₹${totalEstimated.toLocaleString()}</span>
+                </div>
+
+                <div style="display: flex; justify-content: space-between; font-size: 0.85rem; font-weight: 700; color: var(--primary);">
+                  <span>Pay Token Advance Now (20%)</span>
+                  <span>₹${tokenAdvance.toLocaleString()}</span>
+                </div>
+              </div>
+
+              <!-- Payment Method Selector -->
+              <div class="hub-search-field" style="margin-bottom: 1.5rem;">
+                <label class="hub-search-label">💳 Select Escrow Payment Instrument</label>
+                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.5rem;">
+                  <button type="button" class="hub-btn-outline ${this.bookingPaymentMethod === 'upi' ? 'active' : ''}" id="btn-pay-upi" style="font-size: 0.78rem;">
+                    📱 UPI Instant
+                  </button>
+                  <button type="button" class="hub-btn-outline ${this.bookingPaymentMethod === 'card' ? 'active' : ''}" id="btn-pay-card" style="font-size: 0.78rem;">
+                    💳 Corporate Card
+                  </button>
+                  <button type="button" class="hub-btn-outline ${this.bookingPaymentMethod === 'netbanking' ? 'active' : ''}" id="btn-pay-netbanking" style="font-size: 0.78rem;">
+                    🏦 Net Banking
+                  </button>
+                </div>
+              </div>
+
+              <!-- Submit Button with Loading State -->
+              <button
+                class="hub-btn-primary"
+                id="btn-confirm-booking-submit"
+                style="width: 100%; padding: 0.85rem; font-size: 1rem;"
+                ${this.bookingProcessing ? 'disabled' : ''}
+              >
+                ${this.bookingProcessing ? '🔒 Verifying Escrow & Locking Calendar...' : `Pay ₹${tokenAdvance.toLocaleString()} & Lock Calendar Dates`}
+              </button>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    // 4. Provider Verification Dossier Modal
+    renderVerificationModal() {
+      if (!this.verificationModalOpen) return '';
+      const user = window.authService ? window.authService.getCurrentUser() : null;
+
+      return `
+        <div class="hub-modal-overlay" id="modal-verification-overlay">
+          <div class="hub-modal" style="max-width: 640px;">
+            <div class="hub-modal-header">
+              <div>
+                <span class="hub-card-category">MMR Compliance</span>
+                <h3 class="hub-modal-title">${this.t('verificationHeading')}</h3>
+              </div>
+              <button class="hub-modal-close-btn" id="btn-close-verification-modal">✕</button>
+            </div>
+
+            <div class="hub-modal-body">
+              <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 1.25rem;">
+                ${this.t('verificationSubheading')}
+              </p>
+
+              <form id="form-provider-verification" style="display: flex; flex-direction: column; gap: 0.9rem;">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+                  <div class="hub-search-field">
+                    <label class="hub-search-label">${this.t('fullName')}</label>
+                    <input type="text" id="verif-name" class="hub-search-input" value="${this.escapeHtml(user ? user.contactPerson || '' : '')}" required />
+                  </div>
+                  <div class="hub-search-field">
+                    <label class="hub-search-label">${this.t('businessName')}</label>
+                    <input type="text" id="verif-business-name" class="hub-search-input" value="${this.escapeHtml(user ? user.businessName || '' : '')}" required />
+                  </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+                  <div class="hub-search-field">
+                    <label class="hub-search-label">${this.t('businessType')}</label>
+                    <select id="verif-business-type" class="hub-search-select">
+                      ${(window.BUSINESS_TYPES || []).map(b => `<option value="${b}">${b}</option>`).join('')}
+                    </select>
+                  </div>
+                  <div class="hub-search-field">
+                    <label class="hub-search-label">${this.t('location')}</label>
+                    <select id="verif-location" class="hub-search-select">
+                      ${(window.locationService ? window.locationService.getLocationsList().filter(l => l !== 'All Locations (MMR)') : []).map(loc => `
+                        <option value="${this.escapeHtml(loc)}">${this.escapeHtml(loc)}</option>
+                      `).join('')}
+                    </select>
+                  </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+                  <div class="hub-search-field">
+                    <label class="hub-search-label">${this.t('gstinLabel')}</label>
+                    <input type="text" id="verif-gstin" class="hub-search-input" placeholder="27AAACI1234A1Z5" required />
+                  </div>
+                  <div class="hub-search-field">
+                    <label class="hub-search-label">${this.t('fssaiLabel')}</label>
+                    <input type="text" id="verif-fssai" class="hub-search-input" placeholder="11521001000452 or Trade License" />
+                  </div>
+                </div>
+
+                <!-- 3–4 Photo Upload Validation Zone -->
+                <div class="hub-search-field">
+                  <label class="hub-search-label">📸 Upload Facility / Asset Photos (3 to 4 Photos Required)</label>
+                  <p style="font-size: 0.78rem; color: var(--text-muted); margin-bottom: 0.4rem;">
+                    ${this.t('uploadPhotosGuidance')}
+                  </p>
+                  
+                  <div class="hub-upload-dropzone" id="verif-upload-dropzone">
+                    <div style="font-size: 2rem; margin-bottom: 0.35rem;">📷</div>
+                    <div style="font-weight: 700; font-size: 0.9rem;">Click or Drag Photos Here</div>
+                    <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 2px;">PNG, JPG, WEBP (Max 5MB each)</div>
+                    <input type="file" id="verif-file-input" multiple accept="image/*" style="display: none;" />
+                  </div>
+
+                  <!-- Previews Grid -->
+                  <div class="hub-upload-previews-grid" id="verif-previews-grid">
+                    ${this.verificationForm.photos.map((p, idx) => `
+                      <div class="hub-upload-preview-card">
+                        <img src="${p.previewUrl || p}" class="hub-upload-preview-img" />
+                        <button type="button" class="hub-upload-remove-btn" data-remove-verif-photo="${idx}">✕</button>
                       </div>
                     `).join('')}
                   </div>
-
-                  <!-- Calendar View -->
-                  <div class="hub-calendar-view">
-                    <h4 style="font-size: 0.95rem; font-weight: 700; display: flex; align-items: center; gap: 0.4rem;">
-                      📅 ${this.t('calendarAvailability')}
-                    </h4>
-                    <p style="font-size: 0.78rem; color: var(--text-muted); margin-top: 2px;">
-                      ${this.t('calendarNotice')}
-                    </p>
-                    <div class="hub-calendar-grid">
-                      ${['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(d => `
-                        <div class="hub-calendar-day-header">${d}</div>
-                      `).join('')}
-                      ${[24, 25, 26, 27, 28, 29, 30, 1, 2, 3, 4, 5, 6, 7].map(num => {
-                        const isLocked = item.bookedDates && item.bookedDates.some(bd => bd.endsWith(`-${num < 10 ? '0' + num : num}`));
-                        return `
-                          <div class="hub-calendar-day ${isLocked ? 'locked' : 'available'}">
-                            <span>${num}</span>
-                            <span style="font-size: 0.65rem;">${isLocked ? '🔒 Lock' : '🟢 Open'}</span>
-                          </div>
-                        `;
-                      }).join('')}
-                    </div>
-                  </div>
                 </div>
 
-                <div>
-                  <div class="hub-provider-trust-card">
-                    <div class="hub-provider-trust-header">
-                      <div>
-                        <strong style="font-size: 1rem; color: var(--text-primary);">${item.shopName}</strong>
-                        <div style="font-size: 0.78rem; color: var(--primary); font-weight: 700;">
-                          ✓ ${this.t('verifiedBusinessTag')}
-                        </div>
-                      </div>
-                      <span style="font-size: 1.25rem;">🏢</span>
-                    </div>
-                    <div class="hub-trust-metrics">
-                      <div class="hub-trust-metric-item">
-                        <span class="hub-trust-metric-label">Rating</span>
-                        <span class="hub-trust-metric-val">⭐ ${item.rating} / 5.0</span>
-                      </div>
-                      <div class="hub-trust-metric-item">
-                        <span class="hub-trust-metric-label">${this.t('responseRate')}</span>
-                        <span class="hub-trust-metric-val">${this.t('lessThan15Min')}</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div style="background: var(--bg-muted); padding: 1.25rem; border-radius: var(--radius-lg); margin-bottom: 1.25rem;">
-                    <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 0.5rem;">
-                      <span style="font-size: 1.5rem; font-weight: 800; color: var(--text-primary);">
-                        ₹${item.pricePerDay.toLocaleString()}
-                      </span>
-                      <span style="color: var(--text-muted);">${this.t('perDay')}</span>
-                    </div>
-                    <div style="font-size: 0.82rem; color: var(--text-secondary);">
-                      🛡️ ${this.t('refundableDeposit')}: <strong>₹${item.securityDeposit.toLocaleString()}</strong>
-                    </div>
-                  </div>
-
-                  <div style="display: flex; flex-direction: column; gap: 0.75rem;">
-                    <button class="hub-btn-primary" id="btn-detail-checkout" style="width: 100%; justify-content: center; padding: 0.75rem;">
-                      ${this.t('proceedCheckout')}
-                    </button>
-                    <button class="hub-btn-outline" id="btn-detail-negotiate" style="width: 100%; justify-content: center; padding: 0.75rem;">
-                      ${this.t('initiateNegotiation')}
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      `;
-    }
-
-    // Modal: Match Score Breakdown
-    renderMatchScoreModal() {
-      if (!this.matchScoreModalItem) return '';
-      return `
-        <div class="hub-modal-overlay" id="modal-match-overlay">
-          <div class="hub-modal" style="maxWidth: 580px;">
-            <div class="hub-modal-header">
-              <h3 class="hub-modal-title">🎯 ${this.t('matchScoreTitle')}</h3>
-              <button class="hub-modal-close" id="btn-close-match">✕</button>
-            </div>
-            <div class="hub-modal-body">
-              <div style="text-align: center; margin-bottom: 1.5rem;">
-                <div style="font-size: 3rem; font-weight: 900; color: var(--primary);">96%</div>
-                <p style="color: var(--text-secondary); font-size: 0.9rem;">
-                  ${this.t('matchScoreSubtitle')}
-                </p>
-              </div>
-
-              <div class="hub-match-breakdown-list">
-                <div class="hub-match-item">
-                  <div class="hub-match-item-header">
-                    <span>💰 ${this.t('factorPrice')}</span>
-                    <span>98%</span>
-                  </div>
-                  <div class="hub-progress-bar-bg"><div class="hub-progress-bar-fill" style="width: 98%;"></div></div>
-                </div>
-                <div class="hub-match-item">
-                  <div class="hub-match-item-header">
-                    <span>📍 ${this.t('factorDistance')} (4.2 km)</span>
-                    <span>95%</span>
-                  </div>
-                  <div class="hub-progress-bar-bg"><div class="hub-progress-bar-fill" style="width: 95%;"></div></div>
-                </div>
-                <div class="hub-match-item">
-                  <div class="hub-match-item-header">
-                    <span>📅 ${this.t('factorAvailability')}</span>
-                    <span>100%</span>
-                  </div>
-                  <div class="hub-progress-bar-bg"><div class="hub-progress-bar-fill" style="width: 100%;"></div></div>
-                </div>
-                <div class="hub-match-item">
-                  <div class="hub-match-item-header">
-                    <span>⚙️ ${this.t('factorSuitability')}</span>
-                    <span>94%</span>
-                  </div>
-                  <div class="hub-progress-bar-bg"><div class="hub-progress-bar-fill" style="width: 94%;"></div></div>
-                </div>
-                <div class="hub-match-item">
-                  <div class="hub-match-item-header">
-                    <span>⚡ ${this.t('factorUrgency')}</span>
-                    <span>92%</span>
-                  </div>
-                  <div class="hub-progress-bar-bg"><div class="hub-progress-bar-fill" style="width: 92%;"></div></div>
-                </div>
-              </div>
-
-              <div style="margin-top: 2rem; text-align: right;">
-                <button class="hub-btn-primary" id="btn-close-match-sub">
-                  ${this.t('closeModal')}
+                <button type="submit" class="hub-btn-primary" style="padding: 0.8rem; font-size: 0.95rem; width: 100%; margin-top: 0.5rem;">
+                  🛡️ ${this.t('submitVerificationBtn')}
                 </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      `;
-    }
-
-    // Modal: Escrow Checkout Simulator
-    renderCheckoutModal() {
-      if (!this.checkoutResource) return '';
-      const item = this.checkoutResource;
-
-      return `
-        <div class="hub-modal-overlay" id="modal-checkout-overlay">
-          <div class="hub-modal" style="max-width: 780px;">
-            <div class="hub-modal-header">
-              <h3 class="hub-modal-title">
-                ${this.checkoutStep === 'confirmed' ? this.t('paymentSuccessful') : this.t('checkoutTitle')}
-              </h3>
-              <button class="hub-modal-close" id="btn-close-checkout">✕</button>
-            </div>
-
-            <div class="hub-modal-body">
-              ${this.checkoutStep === 'review' ? `
-                <div class="hub-checkout-grid">
-                  <div>
-                    <h4 style="font-size: 1.05rem; font-weight: 700; margin-bottom: 0.75rem;">${this.t('paymentMethod')}</h4>
-                    <div class="hub-payment-methods">
-                      <div class="hub-payment-option ${this.paymentMethod === 'upi' ? 'active' : ''}" data-pm="upi">
-                        <span style="font-size: 1.5rem;">📱</span>
-                        <div>
-                          <strong>${this.t('upiPayment')}</strong>
-                          <div style="font-size: 0.75rem; color: var(--text-muted);">GPay, PhonePe, Paytm, BHIM</div>
-                        </div>
-                      </div>
-                      <div class="hub-payment-option ${this.paymentMethod === 'card' ? 'active' : ''}" data-pm="card">
-                        <span style="font-size: 1.5rem;">💳</span>
-                        <div>
-                          <strong>${this.t('cardPayment')}</strong>
-                          <div style="font-size: 0.75rem; color: var(--text-muted);">Visa, MasterCard, Corporate RuPay</div>
-                        </div>
-                      </div>
-                      <div class="hub-payment-option ${this.paymentMethod === 'netbanking' ? 'active' : ''}" data-pm="netbanking">
-                        <span style="font-size: 1.5rem;">🏦</span>
-                        <div>
-                          <strong>${this.t('netBanking')}</strong>
-                          <div style="font-size: 0.75rem; color: var(--text-muted);">HDFC, ICICI, SBI, Axis Corporate</div>
-                        </div>
-                      </div>
-                    </div>
-
-                    <h4 style="font-size: 1.05rem; font-weight: 700; margin-top: 1.25rem; margin-bottom: 0.75rem;">
-                      ${this.t('logisticsSelector')}
-                    </h4>
-                    <div style="display: flex; gap: 0.5rem;">
-                      <button type="button" class="hub-booking-switch-btn ${this.logisticsMode === 'delivery' ? 'active planned' : ''}" id="btn-checkout-del" style="flex: 1; padding: 0.65rem;">
-                        🚚 ${this.t('siteDelivery')} (+₹850)
-                      </button>
-                      <button type="button" class="hub-booking-switch-btn ${this.logisticsMode === 'pickup' ? 'active planned' : ''}" id="btn-checkout-pick" style="flex: 1; padding: 0.65rem;">
-                        📦 ${this.t('selfPickup')} (${this.t('free')})
-                      </button>
-                    </div>
-                  </div>
-
-                  <div class="hub-order-summary-card">
-                    <h4 style="font-size: 1.05rem; font-weight: 700; margin-bottom: 1rem;">${this.t('bookingSummary')}</h4>
-                    <div style="font-size: 0.9rem; font-weight: 700; margin-bottom: 0.5rem;">${item.title}</div>
-                    <div style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 1rem;">Provider: ${item.shopName}</div>
-
-                    <div class="hub-summary-row">
-                      <span>${this.t('rentalDuration')}</span>
-                      <span>2 ${this.t('days')}</span>
-                    </div>
-                    <div class="hub-summary-row">
-                      <span>${this.t('baseSubtotal')}</span>
-                      <span>₹${(item.pricePerDay * 2).toLocaleString()}</span>
-                    </div>
-                    <div class="hub-summary-row">
-                      <span>${this.t('logisticsFee')}</span>
-                      <span>₹${this.logisticsMode === 'delivery' ? '850' : '0'}</span>
-                    </div>
-                    <div class="hub-summary-row">
-                      <span>${this.t('securityDeposit')}</span>
-                      <span>₹${item.securityDeposit.toLocaleString()}</span>
-                    </div>
-                    <div class="hub-summary-row total">
-                      <span>${this.t('tokenAmount')}</span>
-                      <span>₹${Math.round((item.pricePerDay * 2) * 0.2).toLocaleString()}</span>
-                    </div>
-
-                    <button class="hub-btn-primary" id="btn-confirm-pay" style="width: 100%; margin-top: 1.5rem; padding: 0.85rem; justify-content: center;">
-                      🔒 ${this.t('payAndLockCalendar')}
-                    </button>
-                  </div>
-                </div>
-              ` : ''}
-
-              ${this.checkoutStep === 'processing' ? `
-                <div class="hub-payment-success-box">
-                  <div class="hub-success-icon-badge" style="font-size: 2rem;">⏳</div>
-                  <h3 style="font-size: 1.35rem; font-weight: 800;">${this.t('processingPayment')}</h3>
-                  <p style="color: var(--text-secondary);">Securing escrow tokens and locking calendar schedule.</p>
-                </div>
-              ` : ''}
-
-              ${this.checkoutStep === 'confirmed' ? `
-                <div class="hub-payment-success-box">
-                  <div class="hub-success-icon-badge">✓</div>
-                  <h3 style="font-size: 1.5rem; font-weight: 800;">${this.t('bookingConfirmed')}</h3>
-                  <p style="color: var(--text-secondary);">
-                    ${this.t('bookingId')}: <strong>#B2B-98421</strong> • ${this.t('calendarLockedSuccess')}
-                  </p>
-
-                  <div style="background: var(--bg-muted); padding: 1rem; border-radius: var(--radius-md); width: 100%; max-width: 420px; text-align: left; font-size: 0.85rem;">
-                    <div><strong>Resource:</strong> ${item.title}</div>
-                    <div><strong>Provider:</strong> ${item.shopName}</div>
-                    <div><strong>Locked Dates:</strong> 2026-10-05 to 2026-10-07 (2 Days)</div>
-                    <div><strong>Escrow Token Paid:</strong> ₹${Math.round((item.pricePerDay * 2) * 0.2).toLocaleString()}</div>
-                    <div><strong>Status:</strong> 🟢 Confirmed & Calendar Locked</div>
-                  </div>
-
-                  <div style="display: flex; gap: 0.75rem; margin-top: 1rem;">
-                    <button class="hub-btn-secondary" id="btn-voucher-download">
-                      📥 ${this.t('downloadVoucher')}
-                    </button>
-                    <button class="hub-btn-primary" id="btn-return-market">
-                      ${this.t('returnToMarketplace')}
-                    </button>
-                  </div>
-                </div>
-              ` : ''}
-            </div>
-          </div>
-        </div>
-      `;
-    }
-
-    // Modal: 6-Angle Photo Upload & Resource Creation
-    renderPhotoUploadModal() {
-      if (!this.photoUploadModalOpen) return '';
-
-      return `
-        <div class="hub-modal-overlay" id="modal-upload-overlay">
-          <div class="hub-modal" style="max-width: 840px;">
-            <div class="hub-modal-header">
-              <h3 class="hub-modal-title">${this.t('addNewResource')}</h3>
-              <button class="hub-modal-close" id="btn-close-upload">✕</button>
-            </div>
-
-            <div class="hub-modal-body">
-              <form id="form-create-resource">
-                <!-- 6-Angle Photo Upload Section -->
-                <div class="hub-photo-upload-container">
-                  <div class="hub-photo-upload-header">
-                    <div>
-                      <strong style="font-size: 1rem; color: var(--text-primary);">${this.t('photoUploadTitle')}</strong>
-                      <div class="hub-upload-guidance-pill" style="margin-top: 4px;">
-                        📸 ${this.t('photoUploadGuidance')} (${this.newListingPhotos.length}/6 uploaded)
-                      </div>
-                    </div>
-
-                    <button type="button" class="hub-btn-outline" id="btn-load-demo-photos" style="font-size: 0.8rem; padding: 0.35rem 0.75rem;">
-                      ⚡ ${this.t('loadPresetPhotos')}
-                    </button>
-                  </div>
-
-                  <div class="hub-upload-slots-grid">
-                    ${[
-                      { key: 'slotFront', label: this.t('slotFront') },
-                      { key: 'slotSide', label: this.t('slotSide') },
-                      { key: 'slotInterior', label: this.t('slotInterior') },
-                      { key: 'slotRear', label: this.t('slotRear') },
-                      { key: 'slotCondition', label: this.t('slotCondition') },
-                      { key: 'slotSpec', label: this.t('slotSpec') }
-                    ].map((slot, idx) => {
-                      const img = this.newListingPhotos[idx];
-                      return `
-                        <div class="hub-upload-slot ${img ? 'has-image' : ''}" data-slot-idx="${idx}">
-                          ${img ? `
-                            <img src="${img}" alt="${slot.label}" class="hub-upload-preview-img" />
-                            <div class="hub-slot-actions">
-                              <button type="button" class="hub-slot-btn" data-action="remove-photo" data-idx="${idx}" title="Remove">✕</button>
-                            </div>
-                          ` : `
-                            <span style="font-size: 1.25rem;">📷</span>
-                            <span class="hub-upload-slot-label">${slot.label}</span>
-                          `}
-                        </div>
-                      `;
-                    }).join('')}
-                  </div>
-                </div>
-
-                <!-- Fields -->
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
-                  <div class="hub-search-field">
-                    <label class="hub-search-label">Resource Title *</label>
-                    <input type="text" id="new-res-title" required placeholder="e.g. 10-Grid Combi Steamer Oven" class="hub-search-input" />
-                  </div>
-
-                  <div class="hub-search-field">
-                    <label class="hub-search-label">Category *</label>
-                    <select id="new-res-cat" class="hub-search-select">
-                      ${(window.CATEGORIES || []).filter(c => c.id !== 'all').map(c => `
-                        <option value="${c.id}">${this.t(c.key)}</option>
-                      `).join('')}
-                    </select>
-                  </div>
-
-                  <div class="hub-search-field">
-                    <label class="hub-search-label">Daily Rental Price (₹) *</label>
-                    <input type="number" id="new-res-price" required placeholder="e.g. 8500" class="hub-search-input" />
-                  </div>
-
-                  <div class="hub-search-field">
-                    <label class="hub-search-label">Refundable Security Deposit (₹)</label>
-                    <input type="number" id="new-res-deposit" placeholder="e.g. 4000" class="hub-search-input" />
-                  </div>
-
-                  <div class="hub-search-field">
-                    <label class="hub-search-label">Booking Type</label>
-                    <select id="new-res-btype" class="hub-search-select">
-                      <option value="Planned">📅 Planned Booking</option>
-                      <option value="Emergency">⚡ Emergency Rapid Dispatch</option>
-                    </select>
-                  </div>
-
-                  <div class="hub-search-field">
-                    <label class="hub-search-label">Location</label>
-                    <select id="new-res-loc" class="hub-search-select">
-                      ${(window.MMR_REGIONS || []).filter(r => !r.startsWith('All')).map(r => `
-                        <option value="${r}">${r}</option>
-                      `).join('')}
-                    </select>
-                  </div>
-                </div>
-
-                <div class="hub-search-field" style="margin-bottom: 1rem;">
-                  <label class="hub-search-label">Technical Specifications (One per line)</label>
-                  <textarea rows="3" id="new-res-specs" class="hub-search-input" placeholder="3-Phase 415V Electric&#10;FSSAI Certified&#10;10 x 1/1 GN Capacity"></textarea>
-                </div>
-
-                <div style="display: flex; justify-content: flex-end; gap: 0.75rem;">
-                  <button type="button" class="hub-btn-secondary" id="btn-cancel-upload">Cancel</button>
-                  <button type="submit" class="hub-btn-primary">Publish B2B Listing</button>
-                </div>
               </form>
             </div>
           </div>
@@ -1414,637 +1674,966 @@
       `;
     }
 
-    // Modal: Counter Offer
-    renderCounterOfferModal() {
-      if (!this.negotiationModalItem) return '';
-      const req = this.negotiationModalItem;
+    // 5. Add Resource Modal (for Providers)
+    renderAddResourceModal() {
+      if (!this.addResourceModalOpen) return '';
 
       return `
-        <div class="hub-modal-overlay" id="modal-counter-overlay">
-          <div class="hub-modal" style="max-width: 560px;">
+        <div class="hub-modal-overlay" id="modal-add-resource-overlay">
+          <div class="hub-modal" style="max-width: 680px;">
             <div class="hub-modal-header">
-              <h3 class="hub-modal-title">🔄 ${this.t('sendCounterOffer')}</h3>
-              <button class="hub-modal-close" id="btn-close-counter">✕</button>
+              <div>
+                <span class="hub-card-category">Fleet Monetization</span>
+                <h3 class="hub-modal-title">List New Hospitality Resource</h3>
+              </div>
+              <button class="hub-modal-close-btn" id="btn-close-add-resource-modal">✕</button>
             </div>
 
             <div class="hub-modal-body">
-              <div style="margin-bottom: 1rem;">
-                <strong style="font-size: 1rem;">${req.assetTitle}</strong>
-                <div style="font-size: 0.8rem; color: var(--text-muted);">Provider: ${req.providerBusiness}</div>
-              </div>
+              <form id="form-add-resource" style="display: flex; flex-direction: column; gap: 0.9rem;">
+                <div class="hub-search-field">
+                  <label class="hub-search-label">Resource Title</label>
+                  <input type="text" id="new-res-title" class="hub-search-input" placeholder="e.g. 10-Tray Commercial Rational Combi Oven" required />
+                </div>
 
-              <div class="hub-search-field" style="margin-bottom: 1rem;">
-                <label class="hub-search-label">${this.t('proposeNewPrice')}</label>
-                <input type="number" id="counter-price-val" class="hub-search-input" value="${req.negotiationOffer || Math.round(req.dailyRate * 0.9)}" />
-              </div>
-
-              <div class="hub-search-field" style="margin-bottom: 1.5rem;">
-                <label class="hub-search-label">${this.t('counterNotes')}</label>
-                <textarea rows="3" id="counter-notes-val" class="hub-search-input" placeholder="e.g. Can we include transport setup for this price?"></textarea>
-              </div>
-
-              <div style="display: flex; justify-content: flex-end; gap: 0.75rem;">
-                <button class="hub-btn-secondary" id="btn-cancel-counter">Cancel</button>
-                <button class="hub-btn-primary" id="btn-submit-counter">${this.t('sendCounterOffer')}</button>
-              </div>
-            </div>
-          </div>
-        </div>
-      `;
-    }
-
-    // Modal: Photo Audit
-    renderPhotoAuditModal() {
-      if (!this.photoAuditModalItem) return '';
-      const item = this.photoAuditModalItem;
-
-      return `
-        <div class="hub-modal-overlay" id="modal-audit-overlay">
-          <div class="hub-modal" style="max-width: 780px;">
-            <div class="hub-modal-header">
-              <h3 class="hub-modal-title">📸 ${this.t('photoAuditTitle')}</h3>
-              <button class="hub-modal-close" id="btn-close-audit">✕</button>
-            </div>
-
-            <div class="hub-modal-body">
-              <p style="color: var(--text-secondary); font-size: 0.9rem;">
-                ${this.t('photoAuditSubtitle')}
-              </p>
-
-              <div class="hub-audit-grid">
-                <div class="hub-audit-col">
-                  <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <strong>${this.t('conditionBefore')}</strong>
-                    <span class="hub-status-badge available">✓ ${this.t('statusSubmitted')}</span>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+                  <div class="hub-search-field">
+                    <label class="hub-search-label">Category</label>
+                    <select id="new-res-cat" class="hub-search-select">
+                      <option value="Spaces">Spaces & Venues</option>
+                      <option value="Kitchen">Kitchen & Catering</option>
+                      <option value="Vehicle">Hospitality Fleet</option>
+                      <option value="Furniture">Banquet Furniture</option>
+                      <option value="Equipment">Staging & Event Rigging</option>
+                      <option value="ColdChain">Cold Chain & Freezers</option>
+                      <option value="Logistics">Heavy Logistics</option>
+                      <option value="Utilities">Power & Generators</option>
+                      <option value="Other">Fine Dining & Cutlery</option>
+                    </select>
                   </div>
-                  <div class="hub-audit-photo-reel">
-                    <img src="${item.photos ? item.photos[0] : item.image}" alt="Before 1" />
-                    <img src="${item.photos && item.photos[1] ? item.photos[1] : item.image}" alt="Before 2" />
-                  </div>
-                  <div style="font-size: 0.78rem; color: var(--text-muted);">
-                    Inspected & logged at depot dispatch. No cosmetic or electrical defects found.
+
+                  <div class="hub-search-field">
+                    <label class="hub-search-label">MMR Location</label>
+                    <select id="new-res-location" class="hub-search-select">
+                      ${(window.locationService ? window.locationService.getLocationsList().filter(l => l !== 'All Locations (MMR)') : []).map(loc => `
+                        <option value="${this.escapeHtml(loc)}">${this.escapeHtml(loc)}</option>
+                      `).join('')}
+                    </select>
                   </div>
                 </div>
 
-                <div class="hub-audit-col">
-                  <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <strong>${this.t('conditionAfter')}</strong>
-                    <span class="hub-status-badge negotiating">⏳ ${this.t('statusPending')}</span>
+                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.75rem;">
+                  <div class="hub-search-field">
+                    <label class="hub-search-label">Daily Price (₹)</label>
+                    <input type="number" id="new-res-price" class="hub-search-input" placeholder="8500" required />
                   </div>
-                  <div class="hub-audit-photo-reel">
-                    <img src="${item.photos && item.photos[2] ? item.photos[2] : item.image}" alt="After 1" />
-                    <img src="${item.photos && item.photos[3] ? item.photos[3] : item.image}" alt="After 2" />
+                  <div class="hub-search-field">
+                    <label class="hub-search-label">Refundable Deposit (₹)</label>
+                    <input type="number" id="new-res-deposit" class="hub-search-input" placeholder="4000" />
                   </div>
-                  <div style="font-size: 0.78rem; color: var(--text-muted);">
-                    Return inspection verifies mechanical integrity prior to releasing ₹${item.securityDeposit.toLocaleString()} escrow deposit.
+                  <div class="hub-search-field">
+                    <label class="hub-search-label">Units Available</label>
+                    <input type="number" id="new-res-qty" class="hub-search-input" value="1" min="1" max="50" />
                   </div>
                 </div>
-              </div>
 
-              <div style="margin-top: 1.5rem; text-align: right;">
-                <button class="hub-btn-primary" id="btn-release-escrow">
-                  ✓ ${this.t('releaseDepositBtn')}
+                <div class="hub-search-field">
+                  <label class="hub-search-label">Technical Specifications (One per line)</label>
+                  <textarea id="new-res-specs" class="hub-search-input" rows="3" placeholder="3-Phase 415V Power&#10;HACCP Compliance Certified&#10;Delivered with transit trolley"></textarea>
+                </div>
+
+                <!-- 3–4 Photos Required -->
+                <div class="hub-search-field">
+                  <label class="hub-search-label">📸 High-Resolution Photos (3 to 4 Photos Required)</label>
+                  <div class="hub-upload-dropzone" id="new-res-dropzone">
+                    <div style="font-size: 1.75rem;">📷</div>
+                    <div style="font-weight: 700; font-size: 0.85rem;">Upload 3–4 Asset Photos</div>
+                    <input type="file" id="new-res-file-input" multiple accept="image/*" style="display: none;" />
+                  </div>
+
+                  <div class="hub-upload-previews-grid" id="new-res-previews">
+                    ${this.newResourceForm.photos.map((p, idx) => `
+                      <div class="hub-upload-preview-card">
+                        <img src="${p.previewUrl || p}" class="hub-upload-preview-img" />
+                        <button type="button" class="hub-upload-remove-btn" data-remove-new-photo="${idx}">✕</button>
+                      </div>
+                    `).join('')}
+                  </div>
+                </div>
+
+                <button type="submit" class="hub-btn-primary" style="padding: 0.85rem; font-size: 0.95rem; width: 100%; margin-top: 0.5rem;">
+                  + Publish to MMR Marketplace
                 </button>
-              </div>
+              </form>
             </div>
           </div>
         </div>
       `;
     }
 
-    // --- Filter Logic ---
-    getFilteredInventory() {
-      return this.inventory.filter(item => {
-        if (this.selectedCategory !== 'all' && item.category !== this.selectedCategory) return false;
+    // 6. Write Review Modal (Gated to Completed Bookings)
+    renderReviewModal() {
+      if (!this.reviewModalItem) return '';
+      const item = this.reviewModalItem;
 
-        if (this.searchLocation && this.searchLocation !== 'All Locations (MMR)') {
-          const locPrefix = this.searchLocation.split(',')[0];
-          if (!item.location.includes(locPrefix)) return false;
-        }
+      return `
+        <div class="hub-modal-overlay" id="modal-review-overlay">
+          <div class="hub-modal" style="max-width: 500px;">
+            <div class="hub-modal-header">
+              <h3 class="hub-modal-title">Review Verified Experience</h3>
+              <button class="hub-modal-close-btn" id="btn-close-review-modal">✕</button>
+            </div>
 
-        if (this.searchBookingType !== 'All' && item.bookingType !== this.searchBookingType) {
-          return false;
-        }
+            <div class="hub-modal-body">
+              <div style="font-weight: 700; color: var(--text-primary); margin-bottom: 0.5rem;">
+                ${this.escapeHtml(item.title)}
+              </div>
+              <div style="font-size: 0.78rem; color: var(--primary); font-weight: 600; margin-bottom: 1rem;">
+                ✓ Verified Completed Booking Eligibility Active
+              </div>
 
-        if (this.searchQuery.trim()) {
-          const q = this.searchQuery.toLowerCase();
-          const matchTitle = item.title.toLowerCase().includes(q);
-          const matchShop = item.shopName.toLowerCase().includes(q);
-          const matchDesc = item.description.toLowerCase().includes(q);
-          const matchSpecs = item.specifications && item.specifications.some(s => s.toLowerCase().includes(q));
-          if (!matchTitle && !matchShop && !matchDesc && !matchSpecs) return false;
-        }
+              <form id="form-submit-review" style="display: flex; flex-direction: column; gap: 0.9rem;">
+                <div class="hub-search-field">
+                  <label class="hub-search-label">Star Rating (1 to 5)</label>
+                  <select id="review-star-select" class="hub-search-select">
+                    <option value="5">⭐⭐⭐⭐⭐ 5 Stars (Exceptional)</option>
+                    <option value="4">⭐⭐⭐⭐ 4 Stars (Very Good)</option>
+                    <option value="3">⭐⭐⭐ 3 Stars (Average)</option>
+                    <option value="2">⭐⭐ 2 Stars (Needs Improvement)</option>
+                    <option value="1">⭐ 1 Star (Unsatisfactory)</option>
+                  </select>
+                </div>
 
-        return true;
-      });
+                <div class="hub-search-field">
+                  <label class="hub-search-label">Review Headline</label>
+                  <input type="text" id="review-title-input" class="hub-search-input" placeholder="e.g. Delivered on time and sanitized" required />
+                </div>
+
+                <div class="hub-search-field">
+                  <label class="hub-search-label">Detailed Feedback</label>
+                  <textarea id="review-comment-input" class="hub-search-input" rows="4" placeholder="Describe the equipment condition, delivery punctuality, and operational support..." required></textarea>
+                </div>
+
+                <button type="submit" class="hub-btn-primary" style="padding: 0.75rem; width: 100%;">
+                  Publish Verified Review
+                </button>
+              </form>
+            </div>
+          </div>
+        </div>
+      `;
     }
 
-    escapeHtml(str) {
-      if (!str) return '';
-      return String(str).replace(/[&<>"']/g, function(m) {
-        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m];
-      });
+    // 7. Profile & Settings Modal
+    renderProfileSettingsModal() {
+      if (!this.profileSettingsModalOpen) return '';
+      const user = window.authService ? window.authService.getCurrentUser() : null;
+      if (!user) return '';
+
+      return `
+        <div class="hub-modal-overlay" id="modal-settings-overlay">
+          <div class="hub-modal" style="max-width: 580px;">
+            <div class="hub-modal-header">
+              <h3 class="hub-modal-title">${this.t('profileSettings')}</h3>
+              <button class="hub-modal-close-btn" id="btn-close-settings-modal">✕</button>
+            </div>
+
+            <div class="hub-modal-body">
+              <form id="form-profile-settings" style="display: flex; flex-direction: column; gap: 1rem;">
+                <div class="hub-search-field">
+                  <label class="hub-search-label">${this.t('businessName')}</label>
+                  <input type="text" id="prof-biz-name" class="hub-search-input" value="${this.escapeHtml(user.businessName)}" required />
+                </div>
+
+                <div class="hub-search-field">
+                  <label class="hub-search-label">${this.t('fullName')}</label>
+                  <input type="text" id="prof-contact" class="hub-search-input" value="${this.escapeHtml(user.contactPerson || '')}" required />
+                </div>
+
+                <div class="hub-search-field">
+                  <label class="hub-search-label">${this.t('phone')}</label>
+                  <input type="tel" id="prof-phone" class="hub-search-input" value="${this.escapeHtml(user.phone || '')}" required />
+                </div>
+
+                <div class="hub-search-field">
+                  <label class="hub-search-label">${this.t('location')}</label>
+                  <select id="prof-location" class="hub-search-select">
+                    ${(window.locationService ? window.locationService.getLocationsList().filter(l => l !== 'All Locations (MMR)') : []).map(loc => `
+                      <option value="${this.escapeHtml(loc)}" ${user.location === loc ? 'selected' : ''}>${this.escapeHtml(loc)}</option>
+                    `).join('')}
+                  </select>
+                </div>
+
+                <button type="submit" class="hub-btn-primary" style="padding: 0.75rem; width: 100%; margin-top: 0.5rem;">
+                  Save Profile Settings
+                </button>
+              </form>
+            </div>
+          </div>
+        </div>
+      `;
     }
 
-    // --- Interactive Event Bindings ---
+    // --- DOM Event Bindings ---
     bindEvents() {
-      const root = document.getElementById('root');
-      if (!root) return;
+      // 1. Navigation clicks
+      document.querySelectorAll('[data-nav]').forEach(el => {
+        el.addEventListener('click', (e) => {
+          e.preventDefault();
+          const target = el.getAttribute('data-nav');
+          this.switchView(target);
+        });
+      });
+
+      // Logo click
+      const logo = document.getElementById('nav-logo');
+      if (logo) {
+        logo.addEventListener('click', () => this.switchView('explore'));
+      }
 
       // Theme toggle
-      const btnTheme = document.getElementById('btn-theme-toggle');
-      if (btnTheme) btnTheme.onclick = () => this.setTheme(this.theme === 'light' ? 'dark' : 'light');
-
-      const btnFooterTheme = document.getElementById('btn-footer-theme');
-      if (btnFooterTheme) btnFooterTheme.onclick = () => this.setTheme(this.theme === 'light' ? 'dark' : 'light');
+      const themeBtn = document.getElementById('btn-theme-toggle');
+      if (themeBtn) {
+        themeBtn.addEventListener('click', () => {
+          this.setTheme(this.theme === 'light' ? 'dark' : 'light');
+        });
+      }
 
       // Lang toggle
-      const btnLang = document.getElementById('btn-lang-toggle');
-      if (btnLang) btnLang.onclick = () => this.setLang(this.lang === 'en' ? 'hi' : 'en');
+      const langBtn = document.getElementById('btn-lang-toggle');
+      if (langBtn) {
+        langBtn.addEventListener('click', () => {
+          this.setLang(this.lang === 'en' ? 'hi' : 'en');
+        });
+      }
 
-      const btnFooterLang = document.getElementById('btn-footer-lang');
-      if (btnFooterLang) btnFooterLang.onclick = () => this.setLang(this.lang === 'en' ? 'hi' : 'en');
-
-      // Role switcher
-      const btnRoleSeeker = document.getElementById('btn-role-seeker');
-      if (btnRoleSeeker) btnRoleSeeker.onclick = () => this.setRole('seeker');
-
-      const btnRoleProvider = document.getElementById('btn-role-provider');
-      if (btnRoleProvider) btnRoleProvider.onclick = () => this.setRole('provider');
-
-      // Logo
-      const logo = document.getElementById('nav-logo');
-      if (logo) logo.onclick = () => { this.currentView = 'marketplace'; this.render(); };
-
-      // Nav links
-      document.querySelectorAll('.hub-nav-link, [data-view]').forEach(link => {
-        link.onclick = (e) => {
-          e.preventDefault();
-          const v = link.getAttribute('data-view');
-          if (v) {
-            this.currentView = v;
-            this.render();
+      // Quick location toggle
+      const quickLoc = document.getElementById('btn-quick-loc-toggle');
+      if (quickLoc) {
+        quickLoc.addEventListener('click', () => {
+          const select = document.getElementById('search-location-select');
+          if (select) {
+            select.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            select.focus();
+          } else {
+            this.switchView('explore');
           }
-        };
-      });
+        });
+      }
 
       // Notifications toggle
-      const btnNotifs = document.getElementById('btn-notifications-toggle');
-      if (btnNotifs) btnNotifs.onclick = () => { this.notificationsOpen = !this.notificationsOpen; this.render(); };
+      const notifsBtn = document.getElementById('btn-notifications-toggle');
+      if (notifsBtn) {
+        notifsBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          this.notificationsOpen = !this.notificationsOpen;
+          this.userMenuOpen = false;
+          this.render();
+        });
+      }
 
-      const btnCloseNotifs = document.getElementById('btn-close-notifs');
-      if (btnCloseNotifs) btnCloseNotifs.onclick = () => { this.notificationsOpen = false; this.render(); };
+      const closeNotifs = document.getElementById('btn-close-notifs');
+      if (closeNotifs) {
+        closeNotifs.addEventListener('click', () => {
+          this.notificationsOpen = false;
+          this.render();
+        });
+      }
 
-      // List a resource button
-      const btnList = document.getElementById('btn-header-list-resource');
-      if (btnList) btnList.onclick = () => { this.photoUploadModalOpen = true; this.render(); };
+      // User Menu dropdown toggle
+      const userMenuBtn = document.getElementById('btn-user-menu-toggle');
+      if (userMenuBtn) {
+        userMenuBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          this.userMenuOpen = !this.userMenuOpen;
+          this.notificationsOpen = false;
+          this.render();
+        });
+      }
 
-      const heroBtnList = document.getElementById('hero-btn-list');
-      if (heroBtnList) heroBtnList.onclick = () => { this.photoUploadModalOpen = true; this.render(); };
+      // Auth Trigger buttons
+      const loginBtn = document.getElementById('btn-header-login');
+      if (loginBtn) {
+        loginBtn.addEventListener('click', () => {
+          this.authModalMode = 'login';
+          this.authModalOpen = true;
+          this.render();
+        });
+      }
 
-      const ctaBtnList = document.getElementById('cta-btn-list');
-      if (ctaBtnList) ctaBtnList.onclick = () => { this.photoUploadModalOpen = true; this.render(); };
+      const signupBtn = document.getElementById('btn-header-signup');
+      if (signupBtn) {
+        signupBtn.addEventListener('click', () => {
+          this.authModalMode = 'register';
+          this.authModalOpen = true;
+          this.render();
+        });
+      }
 
-      const heroBtnExplore = document.getElementById('hero-btn-explore');
-      if (heroBtnExplore) heroBtnExplore.onclick = () => {
-        const sec = document.getElementById('search-section');
-        if (sec) sec.scrollIntoView({ behavior: 'smooth' });
-      };
+      const closeAuth = document.getElementById('btn-close-auth-modal');
+      if (closeAuth) {
+        closeAuth.addEventListener('click', () => {
+          this.authModalOpen = false;
+          this.render();
+        });
+      }
 
-      const ctaBtnExplore = document.getElementById('cta-btn-explore');
-      if (ctaBtnExplore) ctaBtnExplore.onclick = () => {
-        const sec = document.getElementById('search-section');
-        if (sec) sec.scrollIntoView({ behavior: 'smooth' });
-      };
+      const switchSignup = document.getElementById('btn-switch-signup');
+      if (switchSignup) {
+        switchSignup.addEventListener('click', () => {
+          this.authModalMode = 'register';
+          this.render();
+        });
+      }
 
-      // Search Inputs
-      const qInput = document.getElementById('search-query-input');
-      if (qInput) {
-        qInput.oninput = (e) => {
+      const switchLogin = document.getElementById('btn-switch-login');
+      if (switchLogin) {
+        switchLogin.addEventListener('click', () => {
+          this.authModalMode = 'login';
+          this.render();
+        });
+      }
+
+      // Password Strength live meter
+      const regPass = document.getElementById('reg-password');
+      if (regPass) {
+        regPass.addEventListener('input', (e) => {
+          const val = e.target.value;
+          const meter = document.getElementById('password-strength-meter');
+          if (meter && window.authService) {
+            const evalResult = window.authService.evaluatePasswordStrength(val);
+            meter.style.color = evalResult.color;
+            meter.textContent = `Strength: ${evalResult.label}`;
+          }
+        });
+      }
+
+      // Header List Resource CTA
+      const headerListBtn = document.getElementById('btn-header-list-resource');
+      if (headerListBtn) {
+        headerListBtn.addEventListener('click', () => {
+          if (!window.authService || !window.authService.isAuthenticated()) {
+            this.showToast('Please sign in to list commercial assets.', 'info');
+            this.authModalMode = 'login';
+            this.authModalOpen = true;
+            this.render();
+            return;
+          }
+          this.addResourceModalOpen = true;
+          this.render();
+        });
+      }
+
+      // User Menu Actions
+      document.querySelectorAll('[data-action]').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+          const action = btn.getAttribute('data-action');
+
+          if (action === 'go-dashboard') {
+            const isProv = window.authService && window.authService.isProvider();
+            this.switchView(isProv ? 'provider-dashboard' : 'seeker-dashboard');
+          } else if (action === 'switch-role') {
+            const current = window.authService.getCurrentUser();
+            const newRole = window.authService.isProvider() ? 'Seeker' : 'Provider';
+            await window.authService.updateProfile({ role: newRole, accountType: newRole.toLowerCase() });
+            this.showToast(`Switched role to ${newRole}`, 'success');
+            this.switchView(newRole === 'Provider' ? 'provider-dashboard' : 'seeker-dashboard');
+          } else if (action === 'go-profile-settings') {
+            this.userMenuOpen = false;
+            this.profileSettingsModalOpen = true;
+            this.render();
+          } else if (action === 'logout') {
+            window.authService.logout();
+            this.showToast('Logged out successfully.', 'info');
+            this.switchView('explore');
+          } else if (action === 'view-details') {
+            const id = btn.getAttribute('data-id');
+            const item = window.resourceService ? window.resourceService.getResourceById(id) : null;
+            if (item) {
+              this.detailModalItem = item;
+              this.detailActivePhotoIdx = 0;
+              this.render();
+            }
+          } else if (action === 'book-now') {
+            const id = btn.getAttribute('data-id');
+            const item = window.resourceService ? window.resourceService.getResourceById(id) : null;
+            if (item) {
+              this.bookingModalItem = item;
+              this.bookingStartDate = this.searchStartDate || new Date().toISOString().split('T')[0];
+              const nextDay = new Date();
+              nextDay.setDate(nextDay.getDate() + 2);
+              this.bookingEndDate = this.searchEndDate || nextDay.toISOString().split('T')[0];
+              this.bookingDays = 2;
+              this.render();
+            }
+          } else if (action === 'cancel-booking') {
+            const bookingId = btn.getAttribute('data-id');
+            if (confirm(`Are you sure you want to cancel booking #${bookingId}? This will release the calendar dates back to the marketplace.`)) {
+              const res = await window.bookingService.cancelBooking(bookingId, 'Cancelled by user from dashboard');
+              if (res.success) {
+                this.showToast(res.message, 'success');
+                this.render();
+              } else {
+                this.showToast(res.error, 'error');
+              }
+            }
+          } else if (action === 'write-review') {
+            const resId = btn.getAttribute('data-resource-id');
+            const item = window.resourceService ? window.resourceService.getResourceById(resId) : null;
+            if (item) {
+              this.reviewModalItem = item;
+              this.render();
+            }
+          } else if (action === 'delete-resource') {
+            const resId = btn.getAttribute('data-id');
+            if (confirm('Are you sure you want to remove this resource listing from the marketplace?')) {
+              await window.resourceService.deleteResource(resId);
+              this.showToast('Resource listing removed.', 'info');
+              this.render();
+            }
+          }
+        });
+      });
+
+      // Search Inputs & Filters
+      const queryInput = document.getElementById('search-query-input');
+      if (queryInput) {
+        queryInput.addEventListener('input', (e) => {
           this.searchQuery = e.target.value;
-        };
-        qInput.onkeydown = (e) => {
-          if (e.key === 'Enter') this.render();
-        };
+        });
       }
 
       const locSelect = document.getElementById('search-location-select');
-      if (locSelect) locSelect.onchange = (e) => { this.searchLocation = e.target.value; this.render(); };
+      if (locSelect) {
+        locSelect.addEventListener('change', (e) => {
+          this.searchLocation = e.target.value;
+          this.render();
+        });
+      }
 
-      const startDateInput = document.getElementById('search-start-date');
-      if (startDateInput) startDateInput.onchange = (e) => { this.searchStartDate = e.target.value; };
+      const startInput = document.getElementById('search-start-date');
+      if (startInput) {
+        startInput.addEventListener('change', (e) => {
+          this.searchStartDate = e.target.value;
+        });
+      }
 
-      const endDateInput = document.getElementById('search-end-date');
-      if (endDateInput) endDateInput.onchange = (e) => { this.searchEndDate = e.target.value; };
+      const endInput = document.getElementById('search-end-date');
+      if (endInput) {
+        endInput.addEventListener('change', (e) => {
+          this.searchEndDate = e.target.value;
+        });
+      }
 
-      const qtyInput = document.getElementById('search-quantity-input');
-      if (qtyInput) qtyInput.oninput = (e) => { this.searchQuantity = Math.max(1, parseInt(e.target.value, 10) || 1); };
+      const sortSelect = document.getElementById('sort-by-select');
+      if (sortSelect) {
+        sortSelect.addEventListener('change', (e) => {
+          this.searchSortBy = e.target.value;
+          this.render();
+        });
+      }
 
-      const btnTogglePlanned = document.getElementById('btn-toggle-planned');
-      if (btnTogglePlanned) btnTogglePlanned.onclick = () => {
-        this.searchBookingType = this.searchBookingType === 'Planned' ? 'All' : 'Planned';
-        this.render();
-      };
+      const submitSearch = document.getElementById('btn-submit-search');
+      if (submitSearch) {
+        submitSearch.addEventListener('click', () => {
+          this.render();
+        });
+      }
 
-      const btnToggleEmergency = document.getElementById('btn-toggle-emergency');
-      if (btnToggleEmergency) btnToggleEmergency.onclick = () => {
-        this.searchBookingType = this.searchBookingType === 'Emergency' ? 'All' : 'Emergency';
-        this.render();
-      };
-
-      const btnSubmitSearch = document.getElementById('btn-submit-search');
-      if (btnSubmitSearch) btnSubmitSearch.onclick = () => {
-        this.render();
-        this.showToast(`Found ${this.getFilteredInventory().length} verified resources`, "info");
-      };
-
-      const btnClearFilters = document.getElementById('btn-clear-filters');
-      if (btnClearFilters) btnClearFilters.onclick = () => {
-        this.selectedCategory = 'all';
-        this.searchBookingType = 'All';
-        this.searchQuery = '';
-        this.searchLocation = 'All Locations (MMR)';
-        this.render();
-      };
+      // Reset / Clear Filters buttons
+      const resetBtn = document.getElementById('btn-reset-filters');
+      if (resetBtn) {
+        resetBtn.addEventListener('click', () => this.resetFilters());
+      }
+      const emptyReset = document.getElementById('btn-empty-reset');
+      if (emptyReset) {
+        emptyReset.addEventListener('click', () => this.resetFilters());
+      }
 
       // Category Navigation Pills
-      document.querySelectorAll('.hub-category-pill, [data-cat]').forEach(pill => {
-        pill.onclick = () => {
+      document.querySelectorAll('.hub-category-pill').forEach(pill => {
+        pill.addEventListener('click', () => {
           const cat = pill.getAttribute('data-cat');
-          if (cat) {
-            this.selectedCategory = cat;
-            this.currentView = 'marketplace';
-            this.render();
+          this.selectedCategory = cat;
+          this.render();
+        });
+      });
+
+      // Planned vs Emergency switches
+      const btnPlanned = document.getElementById('btn-toggle-planned');
+      if (btnPlanned) {
+        btnPlanned.addEventListener('click', () => {
+          this.searchBookingType = this.searchBookingType === 'Planned' ? 'All' : 'Planned';
+          this.render();
+        });
+      }
+      const btnEmerg = document.getElementById('btn-toggle-emergency');
+      if (btnEmerg) {
+        btnEmerg.addEventListener('click', () => {
+          this.searchBookingType = this.searchBookingType === 'Emergency' ? 'All' : 'Emergency';
+          this.render();
+        });
+      }
+
+      // Card Multi-Photo Dot Previews
+      document.querySelectorAll('[data-card-dot]').forEach(dot => {
+        dot.addEventListener('mouseenter', () => {
+          const cardId = dot.getAttribute('data-card-dot');
+          const imgSrc = dot.getAttribute('data-img-src');
+          const imgEl = document.getElementById(`card-img-${cardId}`);
+          if (imgEl) {
+            imgEl.src = imgSrc;
           }
-        };
+          document.querySelectorAll(`[data-card-dot="${cardId}"]`).forEach(d => d.classList.remove('active'));
+          dot.classList.add('active');
+        });
       });
 
-      // Provider Dashboard Tabs
-      document.querySelectorAll('.hub-tab-btn[data-status]').forEach(tab => {
-        tab.onclick = () => {
-          this.providerFilterStatus = tab.getAttribute('data-status');
+      // Detail Modal Thumbnail Click
+      document.querySelectorAll('.hub-detail-thumb').forEach(thumb => {
+        thumb.addEventListener('click', () => {
+          const idx = parseInt(thumb.getAttribute('data-idx'), 10);
+          this.detailActivePhotoIdx = idx;
           this.render();
-        };
+        });
       });
 
-      // Negotiation Tabs
-      document.querySelectorAll('.hub-tab-btn[data-neg-tab]').forEach(tab => {
-        tab.onclick = () => {
-          this.negotiationTab = tab.getAttribute('data-neg-tab');
+      const closeDetail = document.getElementById('btn-close-detail-modal');
+      if (closeDetail) {
+        closeDetail.addEventListener('click', () => {
+          this.detailModalItem = null;
           this.render();
-        };
-      });
+        });
+      }
 
-      // Card action delegation
-      document.querySelectorAll('[data-action]').forEach(el => {
-        el.onclick = (e) => {
-          e.stopPropagation();
-          const act = el.getAttribute('data-action');
-          const id = el.getAttribute('data-id');
-          const item = this.inventory.find(x => x.id === id);
+      // Booking Modal Controls
+      const closeBooking = document.getElementById('btn-close-booking-modal');
+      if (closeBooking) {
+        closeBooking.addEventListener('click', () => {
+          this.bookingModalItem = null;
+          this.render();
+        });
+      }
 
-          if (act === 'view-detail' && item) {
-            this.selectedResource = item;
-            this.activePhotoIndex = 0;
+      const bkgStart = document.getElementById('booking-start-date');
+      if (bkgStart) {
+        bkgStart.addEventListener('change', (e) => {
+          this.bookingStartDate = e.target.value;
+          this.calculateBookingDays();
+          this.render();
+        });
+      }
+
+      const bkgEnd = document.getElementById('booking-end-date');
+      if (bkgEnd) {
+        bkgEnd.addEventListener('change', (e) => {
+          this.bookingEndDate = e.target.value;
+          this.calculateBookingDays();
+          this.render();
+        });
+      }
+
+      const bkgDeliv = document.getElementById('btn-booking-delivery');
+      if (bkgDeliv) {
+        bkgDeliv.addEventListener('click', () => {
+          this.bookingLogistics = 'delivery';
+          this.render();
+        });
+      }
+
+      const bkgPickup = document.getElementById('btn-booking-pickup');
+      if (bkgPickup) {
+        bkgPickup.addEventListener('click', () => {
+          this.bookingLogistics = 'pickup';
+          this.render();
+        });
+      }
+
+      // Payment Instruments
+      const payUpi = document.getElementById('btn-pay-upi');
+      if (payUpi) payUpi.addEventListener('click', () => { this.bookingPaymentMethod = 'upi'; this.render(); });
+      const payCard = document.getElementById('btn-pay-card');
+      if (payCard) payCard.addEventListener('click', () => { this.bookingPaymentMethod = 'card'; this.render(); });
+      const payNet = document.getElementById('btn-pay-netbanking');
+      if (payNet) payNet.addEventListener('click', () => { this.bookingPaymentMethod = 'netbanking'; this.render(); });
+
+      // Confirm Booking Submit Handler
+      const confirmBooking = document.getElementById('btn-confirm-booking-submit');
+      if (confirmBooking) {
+        confirmBooking.addEventListener('click', async () => {
+          const user = window.authService ? window.authService.getCurrentUser() : null;
+          if (!user) {
+            this.showToast('Please sign in to confirm booking reservation.', 'info');
+            this.authModalMode = 'login';
+            this.authModalOpen = true;
             this.render();
+            return;
           }
-          if (act === 'view-match' && item) {
-            this.matchScoreModalItem = item;
-            this.render();
+
+          if (!this.bookingStartDate || !this.bookingEndDate) {
+            this.showToast('Please select both start and end dates.', 'error');
+            return;
           }
-          if (act === 'request-rental' && item) {
-            this.checkoutResource = item;
-            this.checkoutStep = 'review';
-            this.render();
-          }
-          if (act === 'negotiate' && item) {
-            this.negotiationModalItem = {
-              id: `REQ-${Math.floor(1000 + Math.random() * 9000)}`,
-              assetId: item.id,
-              assetTitle: item.title,
-              providerBusiness: item.shopName,
-              seekerBusiness: this.currentUser.businessName,
-              dailyRate: item.pricePerDay,
-              totalAmount: item.pricePerDay * 2,
-              days: 2
-            };
-            this.render();
-          }
-          if (act === 'view-audit' && item) {
-            this.photoAuditModalItem = item;
-            this.render();
-          }
-        };
-      });
 
-      // Detail Modal Actions
-      const btnCloseDetail = document.getElementById('btn-close-detail');
-      if (btnCloseDetail) btnCloseDetail.onclick = () => { this.selectedResource = null; this.render(); };
-
-      const overlayDetail = document.getElementById('modal-detail-overlay');
-      if (overlayDetail) overlayDetail.onclick = (e) => {
-        if (e.target === overlayDetail) { this.selectedResource = null; this.render(); }
-      };
-
-      const btnGalPrev = document.getElementById('btn-gallery-prev');
-      if (btnGalPrev && this.selectedResource) {
-        btnGalPrev.onclick = () => {
-          const photos = this.selectedResource.photos || [this.selectedResource.image];
-          this.activePhotoIndex = this.activePhotoIndex > 0 ? this.activePhotoIndex - 1 : photos.length - 1;
-          this.render();
-        };
-      }
-
-      const btnGalNext = document.getElementById('btn-gallery-next');
-      if (btnGalNext && this.selectedResource) {
-        btnGalNext.onclick = () => {
-          const photos = this.selectedResource.photos || [this.selectedResource.image];
-          this.activePhotoIndex = this.activePhotoIndex < photos.length - 1 ? this.activePhotoIndex + 1 : 0;
-          this.render();
-        };
-      }
-
-      document.querySelectorAll('.hub-gallery-thumb[data-thumb-idx]').forEach(th => {
-        th.onclick = () => {
-          this.activePhotoIndex = parseInt(th.getAttribute('data-thumb-idx'), 10);
-          this.render();
-        };
-      });
-
-      const btnDetailCheckout = document.getElementById('btn-detail-checkout');
-      if (btnDetailCheckout && this.selectedResource) {
-        btnDetailCheckout.onclick = () => {
-          this.checkoutResource = this.selectedResource;
-          this.checkoutStep = 'review';
-          this.selectedResource = null;
-          this.render();
-        };
-      }
-
-      const btnDetailNegotiate = document.getElementById('btn-detail-negotiate');
-      if (btnDetailNegotiate && this.selectedResource) {
-        btnDetailNegotiate.onclick = () => {
-          this.negotiationModalItem = {
-            id: `REQ-${Math.floor(1000 + Math.random() * 9000)}`,
-            assetId: this.selectedResource.id,
-            assetTitle: this.selectedResource.title,
-            providerBusiness: this.selectedResource.shopName,
-            seekerBusiness: this.currentUser.businessName,
-            dailyRate: this.selectedResource.pricePerDay,
-            totalAmount: this.selectedResource.pricePerDay * 2,
-            days: 2
-          };
-          this.selectedResource = null;
-          this.render();
-        };
-      }
-
-      // Match Score Modal Actions
-      const btnCloseMatch = document.getElementById('btn-close-match');
-      if (btnCloseMatch) btnCloseMatch.onclick = () => { this.matchScoreModalItem = null; this.render(); };
-
-      const btnCloseMatchSub = document.getElementById('btn-close-match-sub');
-      if (btnCloseMatchSub) btnCloseMatchSub.onclick = () => { this.matchScoreModalItem = null; this.render(); };
-
-      // Checkout Modal Actions
-      const btnCloseCheckout = document.getElementById('btn-close-checkout');
-      if (btnCloseCheckout) btnCloseCheckout.onclick = () => { this.checkoutResource = null; this.render(); };
-
-      document.querySelectorAll('.hub-payment-option[data-pm]').forEach(opt => {
-        opt.onclick = () => {
-          this.paymentMethod = opt.getAttribute('data-pm');
-          this.render();
-        };
-      });
-
-      const btnCheckoutDel = document.getElementById('btn-checkout-del');
-      if (btnCheckoutDel) btnCheckoutDel.onclick = () => { this.logisticsMode = 'delivery'; this.render(); };
-
-      const btnCheckoutPick = document.getElementById('btn-checkout-pick');
-      if (btnCheckoutPick) btnCheckoutPick.onclick = () => { this.logisticsMode = 'pickup'; this.render(); };
-
-      const btnConfirmPay = document.getElementById('btn-confirm-pay');
-      if (btnConfirmPay && this.checkoutResource) {
-        btnConfirmPay.onclick = () => {
-          this.checkoutStep = 'processing';
+          this.bookingProcessing = true;
           this.render();
 
-          setTimeout(() => {
-            const bookingId = `B2B-${Math.floor(10000 + Math.random() * 90000)}`;
-            const newReq = {
-              id: bookingId,
-              assetId: this.checkoutResource.id,
-              assetTitle: this.checkoutResource.title,
-              category: this.checkoutResource.category,
-              providerBusiness: this.checkoutResource.shopName,
-              seekerBusiness: this.currentUser.businessName,
-              startDate: "2026-10-05",
-              endDate: "2026-10-07",
-              days: 2,
-              quantity: this.searchQuantity || 1,
-              dailyRate: this.checkoutResource.pricePerDay,
-              totalAmount: this.checkoutResource.pricePerDay * 2,
-              tokenAmount: Math.round(this.checkoutResource.pricePerDay * 2 * 0.2),
-              escrowDeposit: this.checkoutResource.securityDeposit,
-              bookingMode: this.checkoutResource.bookingType || "Planned",
-              deliveryMode: this.logisticsMode === 'delivery' ? 'Dedicated Site Delivery' : 'Depot Self Pickup',
-              status: "Approved",
-              paymentStatus: "Paid (Token Verified)",
-              paymentMethod: this.paymentMethod.toUpperCase(),
-              notes: `Confirmed via ${this.paymentMethod.toUpperCase()} escrow. Calendar locked.`,
-              history: []
-            };
-
-            this.requests.unshift(newReq);
-            this.saveRequests();
-
-            this.inventory = this.inventory.map(item => {
-              if (item.id === this.checkoutResource.id) {
-                const locked = item.bookedDates ? [...item.bookedDates, "2026-10-05", "2026-10-06", "2026-10-07"] : ["2026-10-05", "2026-10-06", "2026-10-07"];
-                return { ...item, availabilityStatus: "Pre-booked", bookedDates: locked };
-              }
-              return item;
-            });
-            this.saveInventory();
-
-            this.checkoutStep = 'confirmed';
-            this.showToast("Payment verified & calendar dates locked!", "success");
-            this.render();
-          }, 1200);
-        };
-      }
-
-      const btnVoucher = document.getElementById('btn-voucher-download');
-      if (btnVoucher) btnVoucher.onclick = () => this.showToast("PDF Booking Voucher generated & downloaded", "success");
-
-      const btnReturnMarket = document.getElementById('btn-return-market');
-      if (btnReturnMarket) btnReturnMarket.onclick = () => { this.checkoutResource = null; this.render(); };
-
-      // Photo Upload / Add Resource Actions
-      const btnCloseUpload = document.getElementById('btn-close-upload');
-      if (btnCloseUpload) btnCloseUpload.onclick = () => { this.photoUploadModalOpen = false; this.render(); };
-
-      const btnCancelUpload = document.getElementById('btn-cancel-upload');
-      if (btnCancelUpload) btnCancelUpload.onclick = () => { this.photoUploadModalOpen = false; this.render(); };
-
-      const btnLoadDemoPhotos = document.getElementById('btn-load-demo-photos');
-      if (btnLoadDemoPhotos) {
-        btnLoadDemoPhotos.onclick = () => {
-          this.newListingPhotos = [
-            "https://images.unsplash.com/photo-1519167758481-83f550bb49b3?auto=format&fit=crop&w=1200&q=80",
-            "https://images.unsplash.com/photo-1520854221256-17451cc331bf?auto=format&fit=crop&w=1200&q=80",
-            "https://images.unsplash.com/photo-1511795409834-ef04bbd61622?auto=format&fit=crop&w=1200&q=80",
-            "https://images.unsplash.com/photo-1464366400600-7168b8af9bc3?auto=format&fit=crop&w=1200&q=80"
-          ];
-          this.showToast("Loaded 4 verified demo photos", "success");
-          this.render();
-        };
-      }
-
-      document.querySelectorAll('[data-action="remove-photo"]').forEach(btn => {
-        btn.onclick = (e) => {
-          e.stopPropagation();
-          const idx = parseInt(btn.getAttribute('data-idx'), 10);
-          this.newListingPhotos = this.newListingPhotos.filter((_, i) => i !== idx);
-          this.render();
-        };
-      });
-
-      const formCreate = document.getElementById('form-create-resource');
-      if (formCreate) {
-        formCreate.onsubmit = (e) => {
-          e.preventDefault();
-          const title = document.getElementById('new-res-title').value;
-          const cat = document.getElementById('new-res-cat').value;
-          const price = parseInt(document.getElementById('new-res-price').value, 10);
-          const deposit = parseInt(document.getElementById('new-res-deposit').value, 10) || Math.round(price * 0.4);
-          const btype = document.getElementById('new-res-btype').value;
-          const loc = document.getElementById('new-res-loc').value;
-          const specsRaw = document.getElementById('new-res-specs').value;
-
-          const specs = specsRaw ? specsRaw.split('\n').filter(s => s.trim()) : ["Commercial Grade", "FSSAI / Safety Tested"];
-          const photos = this.newListingPhotos.length > 0 ? this.newListingPhotos : ["https://images.unsplash.com/photo-1556910103-1c02745aae4d?auto=format&fit=crop&w=1200&q=80"];
-
-          const newItem = {
-            id: `hub-${Math.floor(100 + Math.random() * 900)}`,
-            title,
-            category: cat,
-            shopName: this.currentUser.businessName,
-            vendorType: "Hospitality Partner",
-            location: loc,
-            fulfillmentType: "Dedicated Site Delivery",
-            pricePerDay: price,
-            securityDeposit: deposit,
-            quantityAvailable: 1,
-            availabilityStatus: "Available",
-            bookingType: btype,
-            verified: true,
-            rating: 5.0,
-            reviewsCount: 1,
-            completedRentals: 0,
-            description: "Newly listed verified hospitality resource.",
-            specifications: specs,
-            photos: photos,
-            image: photos[0],
-            coordinates: DEPOT_COORDS,
-            instantDispatchAvailable: btype === 'Emergency',
-            bookedDates: [],
-            timeSlots: ["Full Day (24 Hrs)"]
-          };
-
-          this.inventory.unshift(newItem);
-          this.saveInventory();
-          this.photoUploadModalOpen = false;
-          this.newListingPhotos = [];
-          this.showToast("Resource listed successfully!", "success");
-          this.render();
-        };
-      }
-
-      // Counter Offer Modal Actions
-      const btnCloseCounter = document.getElementById('btn-close-counter');
-      if (btnCloseCounter) btnCloseCounter.onclick = () => { this.negotiationModalItem = null; this.render(); };
-
-      const btnCancelCounter = document.getElementById('btn-cancel-counter');
-      if (btnCancelCounter) btnCancelCounter.onclick = () => { this.negotiationModalItem = null; this.render(); };
-
-      const btnSubmitCounter = document.getElementById('btn-submit-counter');
-      if (btnSubmitCounter && this.negotiationModalItem) {
-        btnSubmitCounter.onclick = () => {
-          const val = parseInt(document.getElementById('counter-price-val').value, 10);
-          const notes = document.getElementById('counter-notes-val').value;
-
-          this.requests = this.requests.map(r => {
-            if (r.id === this.negotiationModalItem.id) {
-              return {
-                ...r,
-                status: "Negotiating",
-                negotiationOffer: val,
-                notes: notes || `Counter-offer proposed at ₹${val.toLocaleString()} / day.`
-              };
-            }
-            return r;
+          // 1. Escrow Token Handshake
+          const payRes = await window.paymentService.initiatePayment({
+            bookingId: 'BKG-PRE',
+            amount: this.bookingModalItem.pricePerDay * this.bookingDays,
+            method: this.bookingPaymentMethod,
+            payerEmail: user.email,
+            payerBusiness: user.businessName
           });
-          this.saveRequests();
-          this.negotiationModalItem = null;
-          this.showToast(this.t('counterSuccess'), "success");
-          this.render();
-        };
-      }
 
-      // Offer Accept / Reject
-      document.querySelectorAll('[data-action="accept-offer"]').forEach(btn => {
-        btn.onclick = () => {
-          const id = btn.getAttribute('data-req-id');
-          this.requests = this.requests.map(r => r.id === id ? { ...r, status: "Approved" } : r);
-          this.saveRequests();
-          this.showToast("Offer accepted! Escrow token generated.", "success");
-          this.render();
-        };
-      });
+          // 2. Create Booking & Lock Calendar
+          const res = await window.bookingService.createBooking({
+            resourceId: this.bookingModalItem.id,
+            resourceTitle: this.bookingModalItem.title,
+            category: this.bookingModalItem.category,
+            providerEmail: this.bookingModalItem.ownerEmail || 'procurement@imperialbanquets.in',
+            providerBusiness: this.bookingModalItem.shopName,
+            seekerEmail: user.email,
+            seekerBusiness: user.businessName,
+            seekerPhone: user.phone,
+            startDate: this.bookingStartDate,
+            endDate: this.bookingEndDate,
+            dailyRate: this.bookingModalItem.pricePerDay,
+            securityDeposit: this.bookingModalItem.securityDeposit,
+            logisticsFee: this.bookingLogistics === 'delivery' ? 850 : 0,
+            paymentMethod: this.bookingPaymentMethod
+          });
 
-      document.querySelectorAll('[data-action="reject-offer"]').forEach(btn => {
-        btn.onclick = () => {
-          const id = btn.getAttribute('data-req-id');
-          this.requests = this.requests.map(r => r.id === id ? { ...r, status: "Rejected" } : r);
-          this.saveRequests();
-          this.showToast("Offer declined.", "info");
-          this.render();
-        };
-      });
+          this.bookingProcessing = false;
 
-      document.querySelectorAll('[data-action="open-counter"]').forEach(btn => {
-        btn.onclick = () => {
-          const id = btn.getAttribute('data-req-id');
-          const req = this.requests.find(r => r.id === id);
-          if (req) {
-            this.negotiationModalItem = req;
+          if (res.success) {
+            this.bookingModalItem = null;
+            this.detailModalItem = null;
+            this.showToast(res.message, 'success');
+            this.switchView('seeker-dashboard');
+          } else {
+            this.showToast(res.error, 'error');
             this.render();
           }
-        };
-      });
-
-      // Photo Audit Release Escrow
-      const btnReleaseEscrow = document.getElementById('btn-release-escrow');
-      if (btnReleaseEscrow) {
-        btnReleaseEscrow.onclick = () => {
-          this.showToast("Escrow security deposit cleared & released!", "success");
-          this.photoAuditModalItem = null;
-          this.render();
-        };
+        });
       }
 
-      const btnCloseAudit = document.getElementById('btn-close-audit');
-      if (btnCloseAudit) btnCloseAudit.onclick = () => { this.photoAuditModalItem = null; this.render(); };
+      // Verification Modal & 3–4 Photo Upload Validation
+      const openVerif = document.getElementById('btn-open-verification-modal');
+      if (openVerif) {
+        openVerif.addEventListener('click', () => {
+          this.verificationModalOpen = true;
+          this.render();
+        });
+      }
+      const bannerVerif = document.getElementById('btn-banner-verify');
+      if (bannerVerif) {
+        bannerVerif.addEventListener('click', () => {
+          this.verificationModalOpen = true;
+          this.render();
+        });
+      }
+      const joinProv = document.getElementById('btn-join-as-provider');
+      if (joinProv) {
+        joinProv.addEventListener('click', () => {
+          this.verificationModalOpen = true;
+          this.render();
+        });
+      }
+      const closeVerif = document.getElementById('btn-close-verification-modal');
+      if (closeVerif) {
+        closeVerif.addEventListener('click', () => {
+          this.verificationModalOpen = false;
+          this.render();
+        });
+      }
+
+      // Dropzone for Verification Photos
+      const verifDrop = document.getElementById('verif-upload-dropzone');
+      const verifInput = document.getElementById('verif-file-input');
+      if (verifDrop && verifInput) {
+        verifDrop.addEventListener('click', () => verifInput.click());
+        verifInput.addEventListener('change', async (e) => {
+          const files = Array.from(e.target.files);
+          const valCheck = window.uploadService.validateBatch(this.verificationForm.photos.length, files);
+          if (!valCheck.valid) {
+            this.showToast(valCheck.error, 'error');
+            return;
+          }
+
+          for (const file of files) {
+            const processed = await window.uploadService.processFileForPreview(file);
+            this.verificationForm.photos.push(processed);
+          }
+          this.render();
+        });
+      }
+
+      // Remove photo from verification dossier
+      document.querySelectorAll('[data-remove-verif-photo]').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const idx = parseInt(btn.getAttribute('data-remove-verif-photo'), 10);
+          this.verificationForm.photos.splice(idx, 1);
+          this.render();
+        });
+      });
+
+      // Submit Verification Dossier
+      const formVerif = document.getElementById('form-provider-verification');
+      if (formVerif) {
+        formVerif.addEventListener('submit', async (e) => {
+          e.preventDefault();
+          const user = window.authService ? window.authService.getCurrentUser() : null;
+          const payload = {
+            fullName: document.getElementById('verif-name').value,
+            businessName: document.getElementById('verif-business-name').value,
+            businessType: document.getElementById('verif-business-type').value,
+            location: document.getElementById('verif-location').value,
+            contactPhone: user ? user.phone : '+91 98200 12345',
+            email: user ? user.email : 'provider@mmrhub.in',
+            gstin: document.getElementById('verif-gstin').value,
+            fssaiLicense: document.getElementById('verif-fssai').value,
+            photos: this.verificationForm.photos
+          };
+
+          const res = await window.providerService.submitVerification(payload);
+          if (res.success) {
+            this.verificationModalOpen = false;
+            this.showToast(res.message, 'success');
+            this.switchView('provider-dashboard');
+          } else {
+            this.showToast(res.error, 'error');
+          }
+        });
+      }
+
+      // Add Resource Modal Controls
+      const openAddRes = document.getElementById('btn-open-add-resource');
+      if (openAddRes) openAddRes.addEventListener('click', () => { this.addResourceModalOpen = true; this.render(); });
+      const openAddResInline = document.getElementById('btn-open-add-resource-inline');
+      if (openAddResInline) openAddResInline.addEventListener('click', () => { this.addResourceModalOpen = true; this.render(); });
+      const openAddResEmpty = document.getElementById('btn-empty-add-resource');
+      if (openAddResEmpty) openAddResEmpty.addEventListener('click', () => { this.addResourceModalOpen = true; this.render(); });
+
+      const closeAddRes = document.getElementById('btn-close-add-resource-modal');
+      if (closeAddRes) closeAddRes.addEventListener('click', () => { this.addResourceModalOpen = false; this.render(); });
+
+      // Dropzone for New Resource 3–4 Photos
+      const newResDrop = document.getElementById('new-res-dropzone');
+      const newResInput = document.getElementById('new-res-file-input');
+      if (newResDrop && newResInput) {
+        newResDrop.addEventListener('click', () => newResInput.click());
+        newResInput.addEventListener('change', async (e) => {
+          const files = Array.from(e.target.files);
+          const valCheck = window.uploadService.validateBatch(this.newResourceForm.photos.length, files);
+          if (!valCheck.valid) {
+            this.showToast(valCheck.error, 'error');
+            return;
+          }
+
+          for (const file of files) {
+            const processed = await window.uploadService.processFileForPreview(file);
+            this.newResourceForm.photos.push(processed);
+          }
+          this.render();
+        });
+      }
+
+      // Remove photo from new resource form
+      document.querySelectorAll('[data-remove-new-photo]').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const idx = parseInt(btn.getAttribute('data-remove-new-photo'), 10);
+          this.newResourceForm.photos.splice(idx, 1);
+          this.render();
+        });
+      });
+
+      // Submit Add Resource Form
+      const formAddRes = document.getElementById('form-add-resource');
+      if (formAddRes) {
+        formAddRes.addEventListener('submit', async (e) => {
+          e.preventDefault();
+          const user = window.authService ? window.authService.getCurrentUser() : null;
+          if (this.newResourceForm.photos.length < 3) {
+            this.showToast('Please upload between 3 and 4 authentic high-resolution photos.', 'error');
+            return;
+          }
+
+          const payload = {
+            title: document.getElementById('new-res-title').value,
+            category: document.getElementById('new-res-cat').value,
+            shopName: user ? user.businessName : 'Enterprise Supplier',
+            ownerEmail: user ? user.email : 'provider@mmrhub.in',
+            location: document.getElementById('new-res-location').value,
+            pricePerDay: Number(document.getElementById('new-res-price').value),
+            securityDeposit: Number(document.getElementById('new-res-deposit').value || 3000),
+            quantityAvailable: Number(document.getElementById('new-res-qty').value || 1),
+            specifications: document.getElementById('new-res-specs').value,
+            photos: this.newResourceForm.photos,
+            instantDispatchAvailable: false
+          };
+
+          const res = await window.resourceService.addResource(payload);
+          if (res.success) {
+            this.addResourceModalOpen = false;
+            this.newResourceForm.photos = [];
+            this.showToast(res.message, 'success');
+            this.render();
+          } else {
+            this.showToast(res.error, 'error');
+          }
+        });
+      }
+
+      // Review Modal Submit
+      const formReview = document.getElementById('form-submit-review');
+      if (formReview) {
+        formReview.addEventListener('submit', async (e) => {
+          e.preventDefault();
+          const user = window.authService ? window.authService.getCurrentUser() : null;
+          if (!user) {
+            this.showToast('Please sign in to submit a verified review.', 'info');
+            return;
+          }
+
+          const payload = {
+            resourceId: this.reviewModalItem.id,
+            rating: Number(document.getElementById('review-star-select').value),
+            title: document.getElementById('review-title-input').value,
+            comment: document.getElementById('review-comment-input').value,
+            reviewerName: user.contactPerson || user.businessName,
+            reviewerCompany: user.businessName,
+            reviewerEmail: user.email
+          };
+
+          const res = await window.reviewService.submitReview(payload);
+          if (res.success) {
+            this.reviewModalItem = null;
+            this.showToast(res.message, 'success');
+            this.render();
+          } else {
+            this.showToast(res.error, 'error');
+          }
+        });
+      }
+
+      const closeReview = document.getElementById('btn-close-review-modal');
+      if (closeReview) {
+        closeReview.addEventListener('click', () => {
+          this.reviewModalItem = null;
+          this.render();
+        });
+      }
+
+      // Login Form Submit
+      const formLogin = document.getElementById('form-login');
+      if (formLogin) {
+        formLogin.addEventListener('submit', async (e) => {
+          e.preventDefault();
+          const email = document.getElementById('login-email').value;
+          const password = document.getElementById('login-password').value;
+          const remember = document.getElementById('login-remember').checked;
+
+          const res = await window.authService.login(email, password, remember);
+          if (res.success) {
+            this.authModalOpen = false;
+            this.showToast(res.message, 'success');
+            this.render();
+          } else {
+            this.showToast(res.error, 'error');
+          }
+        });
+      }
+
+      // Registration Form Submit
+      const formReg = document.getElementById('form-register');
+      if (formReg) {
+        formReg.addEventListener('submit', async (e) => {
+          e.preventDefault();
+          const payload = {
+            businessName: document.getElementById('reg-business-name').value,
+            email: document.getElementById('reg-email').value,
+            phone: document.getElementById('reg-phone').value,
+            location: document.getElementById('reg-location').value,
+            password: document.getElementById('reg-password').value,
+            confirmPassword: document.getElementById('reg-confirm-password').value,
+            accountType: document.getElementById('btn-reg-provider').classList.contains('active') ? 'provider' : 'seeker'
+          };
+
+          const res = await window.authService.register(payload);
+          if (res.success) {
+            this.authModalOpen = false;
+            this.showToast(res.message, 'success');
+            this.render();
+          } else {
+            this.showToast(res.error, 'error');
+          }
+        });
+      }
+
+      // Settings Modal Submit
+      const formSettings = document.getElementById('form-profile-settings');
+      if (formSettings) {
+        formSettings.addEventListener('submit', async (e) => {
+          e.preventDefault();
+          const updates = {
+            businessName: document.getElementById('prof-biz-name').value,
+            contactPerson: document.getElementById('prof-contact').value,
+            phone: document.getElementById('prof-phone').value,
+            location: document.getElementById('prof-location').value
+          };
+          await window.authService.updateProfile(updates);
+          this.profileSettingsModalOpen = false;
+          this.showToast('Profile settings saved successfully.', 'success');
+          this.render();
+        });
+      }
+
+      const closeSettings = document.getElementById('btn-close-settings-modal');
+      if (closeSettings) {
+        closeSettings.addEventListener('click', () => {
+          this.profileSettingsModalOpen = false;
+          this.render();
+        });
+      }
+
+      // Hero Buttons Navigation
+      const heroExplore = document.getElementById('btn-hero-explore-from-hiw');
+      if (heroExplore) heroExplore.addEventListener('click', () => this.switchView('explore'));
+      const heroList = document.getElementById('btn-hero-list-from-hiw');
+      if (heroList) heroList.addEventListener('click', () => this.switchView('provider-dashboard'));
+
+      // Close dropdowns on outside click
+      window.addEventListener('click', (e) => {
+        if (!e.target.closest('.hub-user-menu') && !e.target.closest('#btn-notifications-toggle')) {
+          if (this.userMenuOpen || this.notificationsOpen) {
+            this.userMenuOpen = false;
+            this.notificationsOpen = false;
+            this.render();
+          }
+        }
+      }, { once: true });
+    }
+
+    calculateBookingDays() {
+      if (!this.bookingStartDate || !this.bookingEndDate) {
+        this.bookingDays = 1;
+        return;
+      }
+      const start = new Date(this.bookingStartDate);
+      const end = new Date(this.bookingEndDate);
+      const diffTime = Math.abs(end - start);
+      this.bookingDays = Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1);
     }
   }
 
-  // Auto-initialize when DOM is ready
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => {
-      window.hospitalityHubApp = new HospitalityHubApp();
+  // Mount Application on DOM Ready
+  if (typeof window !== 'undefined') {
+    window.addEventListener('DOMContentLoaded', () => {
+      window.app = new HospitalityHubApp();
     });
-  } else {
-    window.hospitalityHubApp = new HospitalityHubApp();
   }
 })();
