@@ -16,14 +16,15 @@
     "marketplace",
     "nodejs",
     "express",
-    "mongodb"
+    "supabase",
+    "postgresql"
   ],
-  "author": "HospitaLink",
+  "author": "HospitalityHub",
   "license": "MIT",
   "dependencies": {
+    "@supabase/supabase-js": "^2.49.1",
     "cors": "^2.8.6",
     "dotenv": "^18.0.3",
-    "express": "^5.2.1",
-    "mongoose": "^9.10.2"
+    "express": "^5.2.1"
   }
 }

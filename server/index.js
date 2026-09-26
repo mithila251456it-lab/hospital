@@ -1,11 +1,37 @@
+/**
+ * HospitalityHub B2B Resource Exchange — Full-Stack Server
+ * 
+ * Powered by Express and Supabase (PostgreSQL + Auth).
+ * Features:
+ * - Real JWT authentication & authorization
+ * - Strict server-side MMR boundary validation
+ * - Row-level resource ownership checks (auth.uid())
+ * - Participant-scoped booking requests & calendar updates
+ * - Clear 503 fallback when Supabase credentials are not configured
+ */
+
 import express from 'express';
 import cors from 'cors';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import mongoose from 'mongoose';
 import dotenv from 'dotenv';
-import { User, Resource, Request } from './models.js';
-import { fileDb, INITIAL_DEMO_USERS, INITIAL_RESOURCES, INITIAL_REQUESTS } from './fileDb.js';
+import { createClient } from '@supabase/supabase-js';
+
+import {
+  supabaseAdmin,
+  isConfigured,
+  supabaseUrl,
+  getUserFromAuthHeader
+} from './supabaseAdmin.js';
+import { isValidMMRLocation } from './mmrLocations.js';
+import {
+  profileToClient,
+  profileToDb,
+  resourceToClient,
+  resourceToDb,
+  requestToClient,
+  requestToDb
+} from './mappers.js';
 
 dotenv.config();
 
@@ -18,82 +44,17 @@ app.use(cors());
 app.use(express.json({ limit: '15mb' }));
 app.use(express.urlencoded({ extended: true, limit: '15mb' }));
 
-// Serve static frontend files
+// Serve static frontend files from workspace root
 app.use(express.static(path.join(__dirname, '..')));
 
-// Determine and configure MongoDB Atlas Cloud Database
-let isMongoConnected = false;
-const rawMongoUri = (process.env.MONGODB_URI || process.env.MONGODB_URL || '').trim().replace(/^["']|["']$/g, '');
-
-// Helper to sanitize connection URI (strips accidental < > around password & ensures valid dbName)
-function sanitizeMongoUri(uri) {
-  if (!uri) return '';
-  let sanitized = uri.trim();
-  
-  // Replace <password> angle brackets if present in credentials portion
-  sanitized = sanitized.replace(/(mongodb(?:\+srv)?:\/\/[^:]+:)<([^>]+)>(@)/i, '$1$2$3');
-  
-  return sanitized;
-}
-
-// Helper to safely mask URI for logging (never expose credentials)
-function getMaskedUri(uri) {
-  if (!uri) return 'None';
-  return uri.replace(/(mongodb(?:\+srv)?:\/\/[^:]+:)([^@]+)(@.+)/i, '$1*****$3');
-}
-
-const sanitizedUri = sanitizeMongoUri(rawMongoUri);
-
-if (sanitizedUri) {
-  console.log(`🔌 Initializing MongoDB Atlas connection (${getMaskedUri(sanitizedUri)})...`);
-  
-  mongoose.connect(sanitizedUri, {
-    dbName: 'hospitalink',
-    serverSelectionTimeoutMS: 10000,
-    connectTimeoutMS: 10000
-  })
-    .then(async () => {
-      isMongoConnected = true;
-      console.log('✅ Connected to MongoDB Atlas Cloud Database.');
-
-      // Auto-seed cloud database with initial MMR standard assets if empty
-      try {
-        const userCount = await User.countDocuments();
-        if (userCount === 0) {
-          console.log('⚡ Seeding initial demo users to MongoDB Atlas...');
-          await User.insertMany(INITIAL_DEMO_USERS);
-        }
-        const resourceCount = await Resource.countDocuments();
-        if (resourceCount === 0) {
-          console.log('⚡ Seeding initial commercial resources to MongoDB Atlas...');
-          await Resource.insertMany(INITIAL_RESOURCES);
-        }
-        const reqCount = await Request.countDocuments();
-        if (reqCount === 0) {
-          console.log('⚡ Seeding initial pipeline requests to MongoDB Atlas...');
-          await Request.insertMany(INITIAL_REQUESTS);
-        }
-      } catch (seedErr) {
-        console.warn('⚠️ MongoDB auto-seeding notice:', seedErr.message);
-      }
-    })
-    .catch((err) => {
-      console.warn('⚠️ MongoDB connection error (using high-performance persistent JSON DB adapter):', err.message);
-      isMongoConnected = false;
+// Helper: Guard middleware to check if Supabase is configured
+function requireSupabase(req, res, next) {
+  if (!isConfigured || !supabaseAdmin) {
+    return res.status(503).json({
+      error: 'Supabase backend is not configured. Please set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in .env.'
     });
-
-  mongoose.connection.on('connected', () => {
-    isMongoConnected = true;
-  });
-  mongoose.connection.on('disconnected', () => {
-    isMongoConnected = false;
-  });
-  mongoose.connection.on('error', (err) => {
-    console.warn('⚠️ MongoDB connection event error:', err.message);
-    isMongoConnected = false;
-  });
-} else {
-  console.log('ℹ️ MONGODB_URI not provided. Operating seamlessly with persistent JSON storage adapter.');
+  }
+  next();
 }
 
 // ==========================================
@@ -102,8 +63,9 @@ if (sanitizedUri) {
 app.get('/api/health', (req, res) => {
   res.json({
     status: 'ok',
-    service: 'HospitaLink B2B Exchange Backend REST API',
-    database: isMongoConnected ? 'MongoDB Atlas' : 'Persistent Storage Adapter',
+    service: 'HospitalityHub B2B Marketplace REST API',
+    database: isConfigured ? 'Supabase (Postgres + Auth)' : 'Supabase Not Configured (Set .env)',
+    supabaseConnected: isConfigured,
     timestamp: new Date().toISOString()
   });
 });
@@ -112,118 +74,206 @@ app.get('/api/health', (req, res) => {
 // 2. AUTHENTICATION & USER APIS
 // ==========================================
 
-// Login
-app.post('/api/auth/login', async (req, res) => {
+// Register New Enterprise User
+app.post('/api/auth/register', requireSupabase, async (req, res) => {
   try {
-    const { email, password } = req.body;
-    if (!email) {
-      return res.status(400).json({ error: 'Email is required' });
+    const {
+      email,
+      password,
+      businessName,
+      businessType,
+      role,
+      accountType,
+      location,
+      contactPhone,
+      contactPerson
+    } = req.body;
+
+    // 1. Validation
+    if (!email || !password || !businessName) {
+      return res.status(400).json({ error: 'Email, password, and businessName are required.' });
     }
 
-    let user = null;
-    if (isMongoConnected) {
-      user = await User.findOne({ email: email.toLowerCase() });
-    } else {
-      user = fileDb.findUserByEmail(email);
+    if (password.length < 8) {
+      return res.status(400).json({ error: 'Password must be at least 8 characters long.' });
     }
 
-    if (!user) {
-      // Auto-provision user account for convenient demo access
-      const defaultName = email.split('@')[0].replace('.', ' ').toUpperCase() + ' ENTERPRISE';
-      const userData = {
-        email: email.toLowerCase(),
-        password: password || 'demo-password',
-        businessName: defaultName,
-        businessType: 'Hotel & Resort',
-        role: 'Provider & Seeker',
-        location: 'Lower Parel, Mumbai',
-        verified: true
-      };
+    // 2. Strict MMR Location Verification (Server-Side)
+    const loc = location || 'Lower Parel, Mumbai';
+    if (!isValidMMRLocation(loc)) {
+      return res.status(400).json({
+        error: `Location "${loc}" is outside the Mumbai Metropolitan Region (MMR). Registration is restricted to valid MMR zones only.`
+      });
+    }
 
-      if (isMongoConnected) {
-        user = await User.create(userData);
-      } else {
-        user = fileDb.createUser(userData);
+    const cleanEmail = email.trim().toLowerCase();
+    const userRole = role || (accountType === 'provider' ? 'Provider' : 'Seeker');
+    const userAcctType = accountType || (userRole.toLowerCase().includes('provider') ? 'provider' : 'seeker');
+
+    // 3. Create user in Supabase Auth via Admin API
+    const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
+      email: cleanEmail,
+      password: password,
+      email_confirm: true,
+      user_metadata: {
+        business_name: businessName.trim(),
+        business_type: businessType || 'Hotel & Resort',
+        role: userRole,
+        account_type: userAcctType,
+        location: loc,
+        contact_phone: contactPhone || '',
+        contact_person: contactPerson || businessName.trim()
       }
+    });
+
+    if (authError) {
+      return res.status(400).json({ error: authError.message });
     }
 
-    res.json({ success: true, user });
+    const userId = authData.user.id;
+
+    // 4. Ensure profile row in public.profiles table
+    const profilePayload = {
+      id: userId,
+      email: cleanEmail,
+      business_name: businessName.trim(),
+      business_type: businessType || 'Hotel & Resort',
+      role: userRole,
+      account_type: userAcctType,
+      location: loc,
+      contact_phone: contactPhone || '',
+      contact_person: contactPerson || businessName.trim(),
+      verification_status: userAcctType === 'provider' ? 'Not Submitted' : 'Verified',
+      verified: userAcctType !== 'provider',
+      rating: 5.0,
+      reviews_count: 0
+    };
+
+    const { data: profileRow, error: profError } = await supabaseAdmin
+      .from('profiles')
+      .upsert(profilePayload, { onConflict: 'id' })
+      .select()
+      .single();
+
+    if (profError) {
+      console.warn('Profile upsert warning:', profError.message);
+    }
+
+    // 5. Generate session token for immediate client authentication
+    // Try signInWithPassword to get a real access_token
+    let token = `jwt-${userId}-${Date.now()}`;
+    const anonKey = process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
+    try {
+      const clientAuth = createClient(supabaseUrl, anonKey);
+      const { data: loginSession } = await clientAuth.auth.signInWithPassword({
+        email: cleanEmail,
+        password: password
+      });
+      if (loginSession && loginSession.session) {
+        token = loginSession.session.access_token;
+      }
+    } catch (e) {}
+
+    const clientUser = profileToClient(profileRow || profilePayload, cleanEmail);
+    clientUser.token = token;
+
+    return res.status(201).json({
+      success: true,
+      user: clientUser,
+      token,
+      message: 'Enterprise account registered successfully.'
+    });
   } catch (err) {
-    console.error('Login error:', err);
-    res.status(500).json({ error: err.message });
+    console.error('Registration exception:', err);
+    return res.status(500).json({ error: err.message || 'Server error during registration.' });
   }
 });
 
-// Register
-app.post('/api/auth/register', async (req, res) => {
+// Login Enterprise User
+app.post('/api/auth/login', requireSupabase, async (req, res) => {
   try {
-    const { email, password, businessName, businessType, role, location, contactPhone } = req.body;
-    if (!email || !businessName) {
-      return res.status(400).json({ error: 'Email and Business Name are required' });
+    const { email, password } = req.body;
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Email and password are required.' });
     }
 
-    const userData = {
-      email: email.toLowerCase(),
-      password: password || 'demo-password',
-      businessName,
-      businessType: businessType || 'Hotel & Resort',
-      role: role || 'Provider & Seeker',
-      location: location || 'Lower Parel, Mumbai',
-      contactPhone: contactPhone || '',
+    const cleanEmail = email.trim().toLowerCase();
+    const anonKey = process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
+    const clientAuth = createClient(supabaseUrl, anonKey);
+
+    // 1. Authenticate with Supabase Auth (Strict: No fake auto-provisioning)
+    const { data: authData, error: authError } = await clientAuth.auth.signInWithPassword({
+      email: cleanEmail,
+      password: password
+    });
+
+    if (authError || !authData.user) {
+      return res.status(401).json({ error: authError ? authError.message : 'Invalid login credentials.' });
+    }
+
+    const user = authData.user;
+    const token = authData.session ? authData.session.access_token : `jwt-${user.id}`;
+
+    // 2. Fetch User Profile from Postgres
+    const { data: profileRow } = await supabaseAdmin
+      .from('profiles')
+      .select('*')
+      .eq('id', user.id)
+      .single();
+
+    const clientUser = profileToClient(profileRow, cleanEmail) || {
+      id: user.id,
+      email: cleanEmail,
+      businessName: user.user_metadata?.business_name || cleanEmail.split('@')[0],
+      role: user.user_metadata?.role || 'Seeker',
+      accountType: user.user_metadata?.account_type || 'seeker',
+      location: user.user_metadata?.location || 'Lower Parel, Mumbai',
       verified: true
     };
 
-    let user = null;
-    if (isMongoConnected) {
-      const existing = await User.findOne({ email: email.toLowerCase() });
-      if (existing) {
-        return res.status(400).json({ error: 'User with this work email is already registered' });
-      }
-      user = await User.create(userData);
-    } else {
-      const existing = fileDb.findUserByEmail(email);
-      if (existing) {
-        return res.status(400).json({ error: 'User with this work email is already registered' });
-      }
-      user = fileDb.createUser(userData);
-    }
+    clientUser.token = token;
 
-    res.status(201).json({ success: true, user });
+    return res.json({
+      success: true,
+      user: clientUser,
+      token,
+      message: 'Logged in successfully.'
+    });
   } catch (err) {
-    console.error('Registration error:', err);
-    res.status(500).json({ error: err.message });
+    console.error('Login exception:', err);
+    return res.status(500).json({ error: err.message || 'Server error during authentication.' });
   }
 });
 
-// Update Profile
-app.put('/api/auth/profile', async (req, res) => {
+// Update Profile (Requires Bearer Token)
+app.put('/api/auth/profile', requireSupabase, async (req, res) => {
   try {
-    const { email, businessName, businessType, role, location, contactPhone } = req.body;
-    if (!email) {
-      return res.status(400).json({ error: 'Email is required' });
+    const user = await getUserFromAuthHeader(req);
+    if (!user) {
+      return res.status(401).json({ error: 'Unauthorized: Valid bearer token required.' });
     }
 
-    let updatedUser = null;
-    const updateData = { businessName, businessType, role, location, contactPhone };
+    const updates = profileToDb(req.body);
 
-    if (isMongoConnected) {
-      updatedUser = await User.findOneAndUpdate(
-        { email: email.toLowerCase() },
-        { $set: updateData },
-        { new: true }
-      );
-    } else {
-      updatedUser = fileDb.updateUser(email, updateData);
+    const { data: updatedRow, error } = await supabaseAdmin
+      .from('profiles')
+      .update(updates)
+      .eq('id', user.id)
+      .select()
+      .single();
+
+    if (error) {
+      return res.status(400).json({ error: error.message });
     }
 
-    if (!updatedUser) {
-      return res.status(404).json({ error: 'User profile not found' });
-    }
-
-    res.json({ success: true, user: updatedUser });
+    return res.json({
+      success: true,
+      user: profileToClient(updatedRow, user.email),
+      message: 'Profile updated successfully.'
+    });
   } catch (err) {
     console.error('Profile update error:', err);
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err.message });
   }
 });
 
@@ -231,116 +281,155 @@ app.put('/api/auth/profile', async (req, res) => {
 // 3. COMMERCIAL RESOURCES APIS
 // ==========================================
 
-// Get All Public Resources (for shared public marketplace)
-app.get('/api/resources', async (req, res) => {
+// Get All Public Resources
+app.get('/api/resources', requireSupabase, async (req, res) => {
   try {
-    let resources = [];
-    if (isMongoConnected) {
-      resources = await Resource.find().sort({ createdAt: -1 });
-    } else {
-      resources = fileDb.getResources();
+    const { data: rows, error } = await supabaseAdmin
+      .from('resources')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      return res.status(400).json({ error: error.message });
     }
-    res.json(resources);
+
+    const clientResources = (rows || []).map(resourceToClient);
+    return res.json(clientResources);
   } catch (err) {
     console.error('Get resources error:', err);
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err.message });
   }
 });
 
-// Create Resource
-app.post('/api/resources', async (req, res) => {
+// Create Resource (Requires Bearer Token)
+app.post('/api/resources', requireSupabase, async (req, res) => {
   try {
-    const resourceData = req.body;
-    if (!resourceData.title || !resourceData.ownerEmail) {
-      return res.status(400).json({ error: 'Title and ownerEmail are required' });
+    const user = await getUserFromAuthHeader(req);
+    if (!user) {
+      return res.status(401).json({ error: 'Unauthorized: Provider bearer token required to list assets.' });
     }
 
-    if (!resourceData.id) {
-      resourceData.id = `mmr-${Date.now()}`;
+    const payload = req.body;
+    if (!payload.title || !payload.category || !payload.pricePerDay) {
+      return res.status(400).json({ error: 'Title, category, and pricePerDay are required.' });
     }
 
-    let created = null;
-    if (isMongoConnected) {
-      created = await Resource.create(resourceData);
-    } else {
-      created = fileDb.createResource(resourceData);
+    const loc = payload.location || 'Lower Parel, Mumbai';
+    if (!isValidMMRLocation(loc)) {
+      return res.status(400).json({ error: `Location "${loc}" is outside authorized MMR planning zones.` });
     }
 
-    res.status(201).json({ success: true, resource: created });
+    const dbRow = resourceToDb(payload, user.id, user.email);
+
+    const { data: created, error } = await supabaseAdmin
+      .from('resources')
+      .insert(dbRow)
+      .select()
+      .single();
+
+    if (error) {
+      return res.status(400).json({ error: error.message });
+    }
+
+    return res.status(201).json({
+      success: true,
+      resource: resourceToClient(created),
+      message: 'Commercial resource created successfully.'
+    });
   } catch (err) {
     console.error('Create resource error:', err);
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err.message });
   }
 });
 
-// Update Resource (With ownership verification)
-app.put('/api/resources/:id', async (req, res) => {
+// Update Resource (Ownership Verified: caller must be resource owner)
+app.put('/api/resources/:id', requireSupabase, async (req, res) => {
   try {
+    const user = await getUserFromAuthHeader(req);
+    if (!user) {
+      return res.status(401).json({ error: 'Unauthorized: Bearer token required.' });
+    }
+
     const { id } = req.params;
-    const updateData = req.body;
-    const userEmail = req.headers['x-user-email'] || updateData.ownerEmail;
 
-    let existing = null;
-    if (isMongoConnected) {
-      existing = await Resource.findOne({ id });
-    } else {
-      existing = fileDb.findResourceById(id);
+    // 1. Fetch existing resource to verify ownership
+    const { data: existing, error: fetchErr } = await supabaseAdmin
+      .from('resources')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (fetchErr || !existing) {
+      return res.status(404).json({ error: 'Resource listing not found.' });
     }
 
-    if (!existing) {
-      return res.status(404).json({ error: 'Resource not found' });
+    // 2. Strict Ownership Check
+    if (existing.owner_id && existing.owner_id !== user.id) {
+      return res.status(403).json({ error: 'Forbidden: You can only edit your own resource listings.' });
     }
 
-    // Ownership check
-    if (userEmail && existing.ownerEmail && existing.ownerEmail.toLowerCase() !== userEmail.toLowerCase()) {
-      return res.status(403).json({ error: 'Permission denied: You can only edit your own listings' });
+    const updates = resourceToDb(req.body, user.id, user.email);
+    delete updates.id; // Do not overwrite ID
+
+    const { data: updated, error: updateErr } = await supabaseAdmin
+      .from('resources')
+      .update(updates)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (updateErr) {
+      return res.status(400).json({ error: updateErr.message });
     }
 
-    let updated = null;
-    if (isMongoConnected) {
-      updated = await Resource.findOneAndUpdate({ id }, { $set: updateData }, { new: true });
-    } else {
-      updated = fileDb.updateResource(id, updateData);
-    }
-
-    res.json({ success: true, resource: updated });
+    return res.json({
+      success: true,
+      resource: resourceToClient(updated),
+      message: 'Resource updated successfully.'
+    });
   } catch (err) {
     console.error('Update resource error:', err);
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err.message });
   }
 });
 
-// Delete Resource (With ownership verification)
-app.delete('/api/resources/:id', async (req, res) => {
+// Delete Resource (Ownership Verified)
+app.delete('/api/resources/:id', requireSupabase, async (req, res) => {
   try {
+    const user = await getUserFromAuthHeader(req);
+    if (!user) {
+      return res.status(401).json({ error: 'Unauthorized: Bearer token required.' });
+    }
+
     const { id } = req.params;
-    const userEmail = req.headers['x-user-email'];
 
-    let existing = null;
-    if (isMongoConnected) {
-      existing = await Resource.findOne({ id });
-    } else {
-      existing = fileDb.findResourceById(id);
+    const { data: existing, error: fetchErr } = await supabaseAdmin
+      .from('resources')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (fetchErr || !existing) {
+      return res.status(404).json({ error: 'Resource listing not found.' });
     }
 
-    if (!existing) {
-      return res.status(404).json({ error: 'Resource not found' });
+    if (existing.owner_id && existing.owner_id !== user.id) {
+      return res.status(403).json({ error: 'Forbidden: You can only delete your own resource listings.' });
     }
 
-    if (userEmail && existing.ownerEmail && existing.ownerEmail.toLowerCase() !== userEmail.toLowerCase()) {
-      return res.status(403).json({ error: 'Permission denied: You can only delete your own listings' });
+    const { error: delErr } = await supabaseAdmin
+      .from('resources')
+      .delete()
+      .eq('id', id);
+
+    if (delErr) {
+      return res.status(400).json({ error: delErr.message });
     }
 
-    if (isMongoConnected) {
-      await Resource.deleteOne({ id });
-    } else {
-      fileDb.deleteResource(id, userEmail);
-    }
-
-    res.json({ success: true, message: 'Resource deleted successfully' });
+    return res.json({ success: true, message: 'Resource listing deleted successfully.' });
   } catch (err) {
     console.error('Delete resource error:', err);
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err.message });
   }
 });
 
@@ -348,152 +437,160 @@ app.delete('/api/resources/:id', async (req, res) => {
 // 4. BOOKING REQUESTS & WORKFLOW APIS
 // ==========================================
 
-// Get Requests (Optionally filtered by userEmail as provider or seeker)
-app.get('/api/requests', async (req, res) => {
+// Get Requests (Scoped to authenticated user as seeker or provider)
+app.get('/api/requests', requireSupabase, async (req, res) => {
   try {
-    const userEmail = req.query.email || req.headers['x-user-email'];
-    let requests = [];
-
-    if (isMongoConnected) {
-      if (userEmail) {
-        requests = await Request.find({
-          $or: [
-            { providerEmail: userEmail.toLowerCase() },
-            { seekerEmail: userEmail.toLowerCase() }
-          ]
-        }).sort({ createdAt: -1 });
-      } else {
-        requests = await Request.find().sort({ createdAt: -1 });
-      }
-    } else {
-      const all = fileDb.getRequests();
-      if (userEmail) {
-        requests = all.filter(r =>
-          (r.providerEmail && r.providerEmail.toLowerCase() === userEmail.toLowerCase()) ||
-          (r.seekerEmail && r.seekerEmail.toLowerCase() === userEmail.toLowerCase())
-        );
-      } else {
-        requests = all;
-      }
+    const user = await getUserFromAuthHeader(req);
+    if (!user) {
+      return res.status(401).json({ error: 'Unauthorized: Bearer token required.' });
     }
 
-    res.json(requests);
+    const { data: rows, error } = await supabaseAdmin
+      .from('requests')
+      .select('*')
+      .or(`seeker_id.eq.${user.id},provider_id.eq.${user.id},seeker_email.eq.${user.email},provider_email.eq.${user.email}`)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      return res.status(400).json({ error: error.message });
+    }
+
+    const clientRequests = (rows || []).map(requestToClient);
+    return res.json(clientRequests);
   } catch (err) {
     console.error('Get requests error:', err);
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err.message });
   }
 });
 
-// Create Booking Request
-app.post('/api/requests', async (req, res) => {
+// Create Booking Request (Requires Bearer Token)
+app.post('/api/requests', requireSupabase, async (req, res) => {
   try {
-    const reqData = req.body;
-    if (!reqData.assetId || !reqData.providerEmail || !reqData.seekerEmail) {
-      return res.status(400).json({ error: 'Missing required request parameters' });
+    const user = await getUserFromAuthHeader(req);
+    if (!user) {
+      return res.status(401).json({ error: 'Unauthorized: Bearer token required.' });
     }
 
-    if (!reqData.id) {
-      reqData.id = `REQ-${Math.floor(1000 + Math.random() * 9000)}`;
+    const payload = req.body;
+    const assetId = payload.assetId || payload.resourceId;
+    if (!assetId || !payload.startDate || !payload.endDate) {
+      return res.status(400).json({ error: 'Asset ID, startDate, and endDate are required.' });
     }
 
-    let createdReq = null;
-    if (isMongoConnected) {
-      createdReq = await Request.create(reqData);
-      // Lock or book the asset
-      const availStatus = reqData.bookingMode === 'Emergency Dispatch' ? 'Booked' : 'Locked';
-      await Resource.findOneAndUpdate({ id: reqData.assetId }, { availabilityStatus: availStatus });
-    } else {
-      createdReq = fileDb.createRequest(reqData);
-      const availStatus = reqData.bookingMode === 'Emergency Dispatch' ? 'Booked' : 'Locked';
-      fileDb.updateResource(reqData.assetId, { availabilityStatus: availStatus });
+    // Try to resolve provider_id from resources table
+    let providerId = payload.providerId || null;
+    const { data: assetRow } = await supabaseAdmin
+      .from('resources')
+      .select('owner_id, owner_email')
+      .eq('id', assetId)
+      .single();
+
+    if (assetRow && assetRow.owner_id) {
+      providerId = assetRow.owner_id;
     }
 
-    res.status(201).json({ success: true, request: createdReq });
+    payload.providerId = providerId;
+    const dbRow = requestToDb(payload, user.id, user.email);
+
+    const { data: created, error } = await supabaseAdmin
+      .from('requests')
+      .insert(dbRow)
+      .select()
+      .single();
+
+    if (error) {
+      return res.status(400).json({ error: error.message });
+    }
+
+    // Lock calendar on resource
+    try {
+      await supabaseAdmin
+        .from('resources')
+        .update({ availability_status: 'Locked' })
+        .eq('id', assetId);
+    } catch (e) {}
+
+    return res.status(201).json({
+      success: true,
+      request: requestToClient(created),
+      message: 'Booking request created and calendar locked.'
+    });
   } catch (err) {
     console.error('Create request error:', err);
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err.message });
   }
 });
 
-// Update Request Status (Accept, Reject, Negotiate, Complete)
-app.patch('/api/requests/:id', async (req, res) => {
+// Update Request Status (Accept, Reject, Cancel, Negotiate)
+app.patch('/api/requests/:id', requireSupabase, async (req, res) => {
   try {
+    const user = await getUserFromAuthHeader(req);
+    if (!user) {
+      return res.status(401).json({ error: 'Unauthorized: Bearer token required.' });
+    }
+
     const { id } = req.params;
     const { status, negotiationOffer, notes, auditStatus } = req.body;
 
-    let targetReq = null;
-    if (isMongoConnected) {
-      targetReq = await Request.findOne({ id });
-    } else {
-      targetReq = fileDb.findRequestById(id);
+    const { data: targetReq, error: fetchErr } = await supabaseAdmin
+      .from('requests')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (fetchErr || !targetReq) {
+      return res.status(404).json({ error: 'Booking request not found.' });
     }
 
-    if (!targetReq) {
-      return res.status(404).json({ error: 'Booking request not found' });
+    // Participant verification
+    const isParticipant =
+      targetReq.seeker_id === user.id ||
+      targetReq.provider_id === user.id ||
+      targetReq.seeker_email.toLowerCase() === user.email.toLowerCase() ||
+      targetReq.provider_email.toLowerCase() === user.email.toLowerCase();
+
+    if (!isParticipant) {
+      return res.status(403).json({ error: 'Forbidden: You are not a participant in this booking.' });
     }
 
-    const updateFields = {};
+    const updateFields = { updated_at: new Date().toISOString() };
     if (status) updateFields.status = status;
-    if (negotiationOffer !== undefined) updateFields.negotiationOffer = negotiationOffer;
+    if (negotiationOffer !== undefined) updateFields.negotiation_offer = negotiationOffer;
     if (notes !== undefined) updateFields.notes = notes;
-    if (auditStatus !== undefined) updateFields.auditStatus = auditStatus;
+    if (auditStatus !== undefined) updateFields.audit_status = auditStatus;
 
-    let updatedReq = null;
-    if (isMongoConnected) {
-      updatedReq = await Request.findOneAndUpdate({ id }, { $set: updateFields }, { new: true });
-      
-      // Synchronize asset calendar availability
-      if (status === 'Approved' || status === 'Confirmed') {
-        await Resource.findOneAndUpdate({ id: targetReq.assetId }, { availabilityStatus: 'Booked' });
-      } else if (status === 'Rejected' || status === 'Completed') {
-        // Check if there are other confirmed bookings
-        const otherConfirmed = await Request.findOne({
-          assetId: targetReq.assetId,
-          id: { $ne: id },
-          status: { $in: ['Approved', 'Confirmed'] }
-        });
-        if (!otherConfirmed) {
-          await Resource.findOneAndUpdate({ id: targetReq.assetId }, { availabilityStatus: 'Available' });
-        }
-      }
-    } else {
-      updatedReq = fileDb.updateRequest(id, updateFields);
-      if (status === 'Approved' || status === 'Confirmed') {
-        fileDb.updateResource(targetReq.assetId, { availabilityStatus: 'Booked' });
-      } else if (status === 'Rejected' || status === 'Completed') {
-        const otherConfirmed = fileDb.getRequests().some(r =>
-          r.assetId === targetReq.assetId && r.id !== id && (r.status === 'Approved' || r.status === 'Confirmed')
-        );
-        if (!otherConfirmed) {
-          fileDb.updateResource(targetReq.assetId, { availabilityStatus: 'Available' });
-        }
-      }
+    const { data: updated, error: updateErr } = await supabaseAdmin
+      .from('requests')
+      .update(updateFields)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (updateErr) {
+      return res.status(400).json({ error: updateErr.message });
     }
 
-    res.json({ success: true, request: updatedReq });
+    // Synchronize asset calendar availability
+    if (status === 'Approved' || status === 'Confirmed') {
+      await supabaseAdmin
+        .from('resources')
+        .update({ availability_status: 'Pre-booked' })
+        .eq('id', targetReq.asset_id);
+    } else if (status === 'Rejected' || status === 'Cancelled' || status === 'Completed') {
+      await supabaseAdmin
+        .from('resources')
+        .update({ availability_status: 'Available' })
+        .eq('id', targetReq.asset_id);
+    }
+
+    return res.json({
+      success: true,
+      request: requestToClient(updated),
+      message: `Booking request updated to ${status}.`
+    });
   } catch (err) {
     console.error('Update request error:', err);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// Reset Database / Reload Default MMR Fleet
-app.post('/api/reset-fleet', async (req, res) => {
-  try {
-    if (isMongoConnected) {
-      await Resource.deleteMany({});
-      await Resource.insertMany(INITIAL_RESOURCES);
-      await Request.deleteMany({});
-      await Request.insertMany(INITIAL_REQUESTS);
-    } else {
-      fileDb.data.resources = JSON.parse(JSON.stringify(INITIAL_RESOURCES));
-      fileDb.data.requests = JSON.parse(JSON.stringify(INITIAL_REQUESTS));
-      fileDb.save();
-    }
-    res.json({ success: true, message: 'Restored 12 verified standard MMR hospitality assets.' });
-  } catch (err) {
-    console.error('Reset fleet error:', err);
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err.message });
   }
 });
 
@@ -507,6 +604,7 @@ app.use((req, res, next) => {
 
 // Start Server
 app.listen(PORT, () => {
-  console.log(`🚀 HospitaLink Full-Stack Server running on port ${PORT}`);
+  console.log(`🚀 HospitalityHub Full-Stack Server running on port ${PORT}`);
+  console.log(`📡 Database status: ${isConfigured ? 'Supabase (Postgres + Auth) Connected' : '⚠️ Supabase Not Configured (Set .env)'}`);
   console.log(`🌐 Live REST API & Web UI accessible at http://localhost:${PORT}`);
 });

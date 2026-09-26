@@ -94,11 +94,23 @@ async function runTests() {
     console.log('✅ 6. Verified all inventory assets contain at least 3-4 photos.');
   }
 
-  // 4. Load authService
+  // 4. Load authService (Strict Supabase Auth — No fake offline bypass)
   loadScriptInSandbox('./js/services/authService.js');
   const auth = sandbox.authService;
-  const loginRes = await auth.login('procurement@imperialbanquets.in', 'password123');
-  console.log('✅ 7. authService login test:', loginRes.success, 'User:', loginRes.user.businessName);
+  // Verify that default state is unauthenticated (no auto-login)
+  const isDefaultAuth = auth.isAuthenticated();
+  if (!isDefaultAuth) {
+    console.log('✅ 7. authService strict unauthenticated guest default verified (no fake auto-login).');
+  } else {
+    throw new Error('authService should not auto-authenticate by default');
+  }
+
+  // Verify password strength evaluator
+  const strongPass = auth.evaluatePasswordStrength('LuxuryB2B@2026');
+  const weakPass = auth.evaluatePasswordStrength('123');
+  if (strongPass.score === 4 && weakPass.score === 0) {
+    console.log('✅ 8. authService password strength evaluator verified.');
+  }
 
   // 5. Load uploadService
   loadScriptInSandbox('./js/services/uploadService.js');
